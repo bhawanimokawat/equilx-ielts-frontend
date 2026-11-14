@@ -1,0 +1,362 @@
+
+/* =========================================
+   EQUILX IELTS - COMMON THEME SYSTEM
+========================================= */
+
+:root {
+  color-scheme: light;
+
+  --page-bg: #ffffff;
+  --card-bg: #ffffff;
+  --surface-bg: #fffafb;
+  --input-bg: #f8fafc;
+
+  --text-primary: #2b3467;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --border-color: #e6e9f1;
+
+  --primary-color: #eb455f;
+  --primary-hover: #cf334d;
+  --primary-soft: #fff0f3;
+
+  --shadow-color: rgba(111, 55, 73, 0.08);
+
+  --hero-bg: linear-gradient(
+    135deg,
+    #fffafb 0%,
+    #ffffff 55%,
+    #fff1f4 100%
+  );
+}
+
+/* =========================================
+   DARK THEME
+========================================= */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page-bg: #17151b;
+  --card-bg: #211b22;
+  --surface-bg: #1c171d;
+  --input-bg: #19171e;
+
+  --text-primary: #fff8fa;
+  --text-secondary: #d7cbd0;
+  --text-muted: #bcaeb3;
+
+  --border-color: #49313a;
+
+  --primary-color: #eb455f;
+  --primary-hover: #ff2458;
+  --primary-soft: #402a32;
+
+  --shadow-color: rgba(0, 0, 0, 0.25);
+
+  --hero-bg: linear-gradient(
+    135deg,
+    #211b22 0%,
+    #17151b 55%,
+    #261921 100%
+  );
+}
+
+/* =========================================
+   GLOBAL BASE
+========================================= */
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: var(--page-bg);
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--text-primary);
+
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* =========================================
+   COMMON TEXT
+========================================= */
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800,
+html[data-theme="dark"] .text-slate-700 {
+  color: var(--text-primary) !important;
+}
+
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500 {
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme="dark"] .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+
+/* =========================================
+   COMMON BACKGROUNDS
+========================================= */
+
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .bg-white\/90 {
+  background-color: var(--card-bg) !important;
+}
+
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--surface-bg) !important;
+}
+
+html[data-theme="dark"] .bg-slate-200 {
+  background-color: #35303c !important;
+}
+
+/* Soft colored surfaces */
+
+html[data-theme="dark"] .bg-rose-50 {
+  background-color: #38202b !important;
+}
+
+html[data-theme="dark"] .bg-purple-50 {
+  background-color: #2b2237 !important;
+}
+
+html[data-theme="dark"] .bg-emerald-50 {
+  background-color: #18352e !important;
+}
+
+html[data-theme="dark"] .bg-sky-50 {
+  background-color: #1b2d3a !important;
+}
+
+/* =========================================
+   COMMON BORDERS
+========================================= */
+
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300,
+html[data-theme="dark"] .border-\[\#e6e9f1\],
+html[data-theme="dark"] .border-\[\#e9ebf2\],
+html[data-theme="dark"] .border-\[\#f2e6e9\] {
+  border-color: var(--border-color) !important;
+}
+
+/* =========================================
+   INPUTS
+========================================= */
+
+input,
+textarea,
+select {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #77717f;
+}
+
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] textarea:focus,
+html[data-theme="dark"] select:focus {
+  border-color: var(--primary-color);
+  outline-color: var(--primary-color);
+}
+
+/* =========================================
+   HOVER EFFECTS
+========================================= */
+
+html[data-theme="dark"] .hover\:bg-slate-50:hover,
+html[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: #35303c !important;
+}
+
+/* =========================================
+   LANDING PAGE COMMON STYLES
+========================================= */
+
+.hero-wash {
+  background: var(--hero-bg);
+}
+
+.skill-section {
+  background: var(--page-bg);
+}
+
+.skill-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px var(--shadow-color);
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.nav-link {
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--primary-color);
+}
+
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 21px;
+  border-radius: 12px;
+  background: var(--primary-color);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+
+.primary-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 13px 21px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+
+.secondary-btn:hover {
+  background: var(--surface-bg);
+}
+
+.section-title {
+  color: var(--text-primary);
+}
+
+.section-kicker {
+  color: var(--primary-color);
+}
+
+.cta-panel {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+}
+
+.dashboard-glow {
+  position: absolute;
+  inset: 5%;
+  background: var(--primary-soft);
+  filter: blur(65px);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .dashboard-glow {
+  opacity: 0.25;
+}
+
+/* =========================================
+   THEME TOGGLE
+========================================= */
+
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  background: var(--card-bg);
+  color: var(--text-primary);
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-bg);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.theme-toggle:active {
+  transform: scale(0.96);
+}
+
+/* =========================================
+   SMOOTH THEME TRANSITIONS
+========================================= */
+
+body,
+header,
+main,
+section,
+aside,
+nav,
+article,
+footer,
+.theme-toggle,
+.skill-card,
+.cta-panel {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease;
+}
