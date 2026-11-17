@@ -1,11 +1,10 @@
-import React, { useState } from "react";
-import StudentLayout from "./StudentLayout";
 
+import React, { useCallback, useEffect, useState } from "react";
+import StudentLayout from "./StudentLayout";
 import {
   UserRound,
   Bell,
   ShieldCheck,
-  LockKeyhole,
   Eye,
   EyeOff,
   Camera,
@@ -20,35 +19,24 @@ import {
   Monitor,
   Moon,
   Sun,
-  Smartphone,
   Laptop,
   LogOut,
   Trash2,
-  KeyRound,
   Languages,
-  Volume2,
-  BookOpen,
   CircleHelp,
   AlertTriangle,
   X,
   Settings as SettingsIcon,
   CheckCircle2,
   Palette,
+  LoaderCircle,
 } from "lucide-react";
+import settingsService from "../../services/settingsService";
 
 // ======================================================
-// INITIAL DATA
+// LOCAL PREFERENCES
+// These settings have no persistence API in the backend.
 // ======================================================
-
-const initialProfile = {
-  fullName: "Dinesh",
-  email: "dp@gmail.com",
-  phone: "",
-  country: "India",
-  timezone: "India/Kolkata",
-  language: "English",
-  bio: "Preparing for IELTS Academic.",
-};
 
 const initialNotifications = {
   emailUpdates: true,
@@ -74,7 +62,7 @@ const sections = [
 ];
 
 // ======================================================
-// TOGGLE COMPONENT
+// SMALL COMPONENTS
 // ======================================================
 
 function SettingsToggle({ checked, onChange, label }) {
@@ -98,10 +86,6 @@ function SettingsToggle({ checked, onChange, label }) {
   );
 }
 
-// ======================================================
-// SETTINGS ROW
-// ======================================================
-
 function SettingsRow({
   title,
   description,
@@ -119,7 +103,6 @@ function SettingsRow({
         <p className="text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]">
           {title}
         </p>
-
         <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
           {description}
         </p>
@@ -134,10 +117,6 @@ function SettingsRow({
   );
 }
 
-// ======================================================
-// SECTION HEADING
-// ======================================================
-
 function SectionHeading({ icon: Icon, title, description }) {
   return (
     <div className="mb-5 flex items-start gap-3">
@@ -149,7 +128,6 @@ function SectionHeading({ icon: Icon, title, description }) {
         <h2 className="text-base font-black text-[#10265F] dark:text-[#FFF8FA]">
           {title}
         </h2>
-
         <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
           {description}
         </p>
@@ -158,6 +136,12 @@ function SectionHeading({ icon: Icon, title, description }) {
   );
 }
 
+const inputClass =
+  "w-full rounded-xl border border-[#E4EAF5] bg-white px-3 py-3 text-xs text-[#10265F] outline-none transition focus:border-[#FF8199] focus:ring-2 focus:ring-[#FF8199]/10 dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]";
+
+const labelClass =
+  "mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]";
+
 // ======================================================
 // MAIN SETTINGS PAGE
 // ======================================================
@@ -165,7 +149,13 @@ function SectionHeading({ icon: Icon, title, description }) {
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState("profile");
 
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    avatarUrl: "",
+  });
+
   const [notifications, setNotifications] = useState(initialNotifications);
   const [preferences, setPreferences] = useState(initialPreferences);
 
@@ -181,18 +171,23 @@ export default function SettingsPage() {
     confirm: false,
   });
 
+  const [security, setSecurity] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("success");
+  const [passwordError, setPasswordError] = useState("");
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const [avatarPreview, setAvatarPreview] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-
-  // ====================================================
-  // UPDATE FUNCTIONS
-  // ====================================================
+  // ----------------------------------------------------
+  // NOTIFICATIONS AND PREFERENCES
+  // ----------------------------------------------------
 
   const updateProfile = (field, value) => {
     setProfile((previous) => ({
@@ -220,9 +215,53 @@ export default function SettingsPage() {
     setNoticeType(type);
   };
 
-  // ====================================================
-  // PROFILE PHOTO
-  // ====================================================
+  // ----------------------------------------------------
+  // LOAD PROFILE AND SECURITY FROM BACKEND
+  // ----------------------------------------------------
+
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setNotice("");
+
+    try {
+      const [profileResponse, securityResponse] = await Promise.all([
+        settingsService.getProfile(),
+        settingsService.getSecurity(),
+      ]);
+
+      const user = profileResponse?.data?.user;
+      const profileData = user?.profile || {};
+
+      if (user) {
+        setProfile({
+          fullName: profileData.name || "",
+          email: user.email || "",
+          phone: profileData.phone || "",
+          avatarUrl: profileData.avatarUrl || "",
+        });
+
+        setAvatarPreview(profileData.avatarUrl || "");
+      }
+
+      setSecurity(securityResponse?.data?.security || null);
+    } catch (error) {
+      showNotice(
+        error.message || "Unable to load your account settings.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // ----------------------------------------------------
+  // PROFILE PHOTO PREVIEW
+  // Backend currently accepts avatarUrl, not file upload.
+  // ----------------------------------------------------
 
   const handleAvatarChange = (event) => {
     const file = event.target.files?.[0];
@@ -230,7 +269,7 @@ export default function SettingsPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      showNotice("Please select an image file.", "error");
+      showNotice("Please select a valid image file.", "error");
       return;
     }
 
@@ -243,94 +282,190 @@ export default function SettingsPage() {
 
     reader.onload = () => {
       setAvatarPreview(String(reader.result));
-
       showNotice(
-        "Photo preview updated. Save it through your backend to keep it permanently."
+        "Photo preview updated. This backend does not currently provide a photo upload endpoint.",
+        "error"
       );
     };
 
     reader.readAsDataURL(file);
   };
 
-  // ====================================================
-  // SAVE SETTINGS
-  // ====================================================
+  // ----------------------------------------------------
+  // SAVE PROFILE
+  // Only supported fields are sent to the backend.
+  // ----------------------------------------------------
 
-  const saveSettings = () => {
-    if (activeSection === "security") {
-      setPasswordError("");
-
-      if (
-        !passwordForm.currentPassword ||
-        !passwordForm.newPassword ||
-        !passwordForm.confirmPassword
-      ) {
-        setPasswordError("Please fill in all password fields.");
-        return;
-      }
-
-      if (passwordForm.newPassword.length < 8) {
-        setPasswordError(
-          "New password must contain at least 8 characters."
-        );
-        return;
-      }
-
-      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-        setPasswordError(
-          "New password and confirmation do not match."
-        );
-        return;
-      }
-
-      showNotice(
-        "Password validation passed. Connect your password update API to save the change."
-      );
-
-      return;
-    }
-
-    if (activeSection === "profile" && !profile.fullName.trim()) {
+  const saveProfile = async () => {
+    if (!profile.fullName.trim()) {
       showNotice("Please enter your full name.", "error");
       return;
     }
 
-    if (activeSection === "profile" && !profile.email.trim()) {
-      showNotice("Please enter your email address.", "error");
+    if (profile.fullName.trim().length < 2) {
+      showNotice("Name must contain at least 2 characters.", "error");
       return;
     }
 
-    showNotice(
-      "Settings updated in this page preview. Connect your API to save them to your account."
-    );
+    if (
+      profile.phone.trim() &&
+      !/^[+\d\s().-]{7,20}$/.test(profile.phone.trim())
+    ) {
+      showNotice("Please enter a valid phone number.", "error");
+      return;
+    }
+
+    const payload = {
+      name: profile.fullName.trim(),
+      phone: profile.phone.trim() || null,
+    };
+
+    setSaving(true);
+
+    try {
+      const response = await settingsService.updateProfile(payload);
+      const updatedUser = response?.data?.user;
+
+      if (updatedUser) {
+        setProfile((previous) => ({
+          ...previous,
+          fullName: updatedUser.profile?.name || previous.fullName,
+          email: updatedUser.email || previous.email,
+          phone: updatedUser.profile?.phone || "",
+          avatarUrl: updatedUser.profile?.avatarUrl || "",
+        }));
+      }
+
+      showNotice("Your profile has been updated successfully.");
+    } catch (error) {
+      showNotice(
+        error.message || "Unable to update your profile.",
+        "error"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ====================================================
-  // ACCOUNT DELETE
-  // ====================================================
+  // ----------------------------------------------------
+  // SAVE LOCAL-ONLY SETTINGS
+  // ----------------------------------------------------
 
-  const handleDeleteAccount = () => {
-    setShowDeleteModal(false);
-
+  const saveLocalSettings = () => {
     showNotice(
-      "Account deletion is not enabled in this demo. Connect a secure account deletion API.",
+      "Your selections are updated in this page only. The backend does not currently provide APIs to persist preferences or notification settings.",
       "error"
     );
   };
 
-  // ====================================================
-  // PASSWORD FIELD
-  // ====================================================
+  // ----------------------------------------------------
+  // CHANGE PASSWORD
+  // ----------------------------------------------------
+
+  const savePassword = async () => {
+    setPasswordError("");
+
+    if (
+      !passwordForm.currentPassword ||
+      !passwordForm.newPassword ||
+      !passwordForm.confirmPassword
+    ) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError(
+        "New password must contain at least 8 characters."
+      );
+      return;
+    }
+
+    if (passwordForm.newPassword.length > 128) {
+      setPasswordError(
+        "New password must not exceed 128 characters."
+      );
+      return;
+    }
+
+    if (
+      passwordForm.newPassword !== passwordForm.confirmPassword
+    ) {
+      setPasswordError(
+        "New password and confirmation do not match."
+      );
+      return;
+    }
+
+    if (
+      passwordForm.currentPassword === passwordForm.newPassword
+    ) {
+      setPasswordError(
+        "New password must be different from your current password."
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await settingsService.changePassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
+
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+
+      showNotice(
+        response?.message ||
+          "Password changed successfully. Please log in again."
+      );
+
+      // Backend clears the refresh cookie after password change.
+      // The user should sign in again to establish a new session.
+    } catch (error) {
+      setPasswordError(
+        error.message || "Unable to change your password."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ----------------------------------------------------
+  // LOGOUT
+  // ----------------------------------------------------
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+
+    try {
+      await settingsService.logout();
+      window.location.assign("/login");
+    } catch (error) {
+      setLoggingOut(false);
+      setShowLogoutModal(false);
+      showNotice(
+        error.message || "Unable to sign out. Please try again.",
+        "error"
+      );
+    }
+  };
+
+  // ----------------------------------------------------
+  // PASSWORD INPUT
+  // ----------------------------------------------------
 
   const renderPasswordField = (label, field, visibilityKey) => {
     const visible = showPasswords[visibilityKey];
 
     return (
       <div>
-        <label
-          htmlFor={field}
-          className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-        >
+        <label htmlFor={field} className={labelClass}>
           {label}
         </label>
 
@@ -338,7 +473,7 @@ export default function SettingsPage() {
           <input
             id={field}
             type={visible ? "text" : "password"}
-            autoComplete="off"
+            autoComplete="new-password"
             value={passwordForm[field]}
             onChange={(event) =>
               setPasswordForm((previous) => ({
@@ -347,7 +482,7 @@ export default function SettingsPage() {
               }))
             }
             placeholder={`Enter ${label.toLowerCase()}`}
-            className="w-full rounded-xl border border-[#E4EAF5] bg-white px-3 py-3 pr-11 text-xs text-[#10265F] outline-none transition focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+            className={`${inputClass} pr-11`}
           />
 
           <button
@@ -368,9 +503,9 @@ export default function SettingsPage() {
     );
   };
 
-  // ====================================================
+  // ----------------------------------------------------
   // PROFILE SECTION
-  // ====================================================
+  // ----------------------------------------------------
 
   const renderProfile = () => (
     <section>
@@ -379,8 +514,6 @@ export default function SettingsPage() {
         title="Profile information"
         description="Manage the personal information associated with your account."
       />
-
-      {/* PROFILE PHOTO */}
 
       <div className="mb-7 flex flex-col items-start gap-4 rounded-2xl bg-[#F8FAFF] p-4 dark:bg-[#30232B] sm:flex-row sm:items-center">
         <div className="relative">
@@ -422,34 +555,25 @@ export default function SettingsPage() {
           <h3 className="text-sm font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
             Profile photo
           </h3>
-
           <p className="mt-1 text-[11px] text-[#8290AA] dark:text-[#C1B5C0]">
             JPG, PNG or another supported image format.
           </p>
-
           <p className="mt-1 text-[10px] text-[#A1ACC0]">
             Maximum file size: 3 MB
           </p>
         </div>
       </div>
 
-      {/* PROFILE FORM */}
-
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label
-            htmlFor="fullName"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
+          <label htmlFor="fullName" className={labelClass}>
             Full name
           </label>
-
           <div className="relative">
             <UserRound
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
             />
-
             <input
               id="fullName"
               value={profile.fullName}
@@ -457,52 +581,42 @@ export default function SettingsPage() {
                 updateProfile("fullName", event.target.value)
               }
               placeholder="Your full name"
-              className="w-full rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-3 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+              className={`${inputClass} pl-9`}
             />
           </div>
         </div>
 
         <div>
-          <label
-            htmlFor="email"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
+          <label htmlFor="email" className={labelClass}>
             Email address
           </label>
-
           <div className="relative">
             <Mail
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
             />
-
             <input
               id="email"
               type="email"
               value={profile.email}
-              onChange={(event) =>
-                updateProfile("email", event.target.value)
-              }
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-3 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+              readOnly
+              className={`${inputClass} cursor-not-allowed bg-[#F8FAFF] pl-9 dark:bg-[#30232B]`}
             />
           </div>
+          <p className="mt-1 text-[10px] text-[#9AA8C2]">
+            Email is managed through your account authentication.
+          </p>
         </div>
 
         <div>
-          <label
-            htmlFor="phone"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
+          <label htmlFor="phone" className={labelClass}>
             Phone number
           </label>
-
           <div className="relative">
             <Phone
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
             />
-
             <input
               id="phone"
               type="tel"
@@ -511,167 +625,41 @@ export default function SettingsPage() {
                 updateProfile("phone", event.target.value)
               }
               placeholder="Enter phone number"
-              className="w-full rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-3 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+              className={`${inputClass} pl-9`}
             />
           </div>
         </div>
+      </div>
 
-        <div>
-          <label
-            htmlFor="country"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
-            Country
-          </label>
-
-          <div className="relative">
-            <Globe
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-
-            <select
-              id="country"
-              value={profile.country}
-              onChange={(event) =>
-                updateProfile("country", event.target.value)
-              }
-              className="w-full appearance-none rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-9 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
-            >
-              <option>India</option>
-              <option>United Kingdom</option>
-              <option>United States</option>
-              <option>Canada</option>
-              <option>Australia</option>
-              <option>New Zealand</option>
-              <option>Other</option>
-            </select>
-
-            <ChevronDown
-              size={15}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="timezone"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
-            Time zone
-          </label>
-
-          <div className="relative">
-            <Clock
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-
-            <select
-              id="timezone"
-              value={profile.timezone}
-              onChange={(event) =>
-                updateProfile("timezone", event.target.value)
-              }
-              className="w-full appearance-none rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-9 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
-            >
-              <option value="Asia/Kolkata">
-                India Standard Time (IST)
-              </option>
-              <option value="Europe/London">United Kingdom</option>
-              <option value="America/New_York">Eastern Time (ET)</option>
-              <option value="Australia/Sydney">
-                Australian Eastern Time
-              </option>
-              <option value="UTC">UTC</option>
-            </select>
-
-            <ChevronDown
-              size={15}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="language"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
-            Preferred language
-          </label>
-
-          <div className="relative">
-            <Languages
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-
-            <select
-              id="language"
-              value={profile.language}
-              onChange={(event) =>
-                updateProfile("language", event.target.value)
-              }
-              className="w-full appearance-none rounded-xl border border-[#E4EAF5] bg-white py-3 pl-9 pr-9 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
-            >
-              <option>English</option>
-              <option>Hindi</option>
-            </select>
-
-            <ChevronDown
-              size={15}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9AA8C2]"
-            />
-          </div>
-        </div>
-
-        <div className="sm:col-span-2">
-          <label
-            htmlFor="bio"
-            className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-          >
-            About me
-          </label>
-
-          <textarea
-            id="bio"
-            rows={3}
-            maxLength={250}
-            value={profile.bio}
-            onChange={(event) =>
-              updateProfile("bio", event.target.value)
-            }
-            placeholder="Tell us about your learning goals..."
-            className="w-full resize-y rounded-xl border border-[#E4EAF5] bg-white px-3 py-3 text-xs leading-5 text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
-          />
-
-          <p className="mt-1 text-right text-[10px] text-[#9AA8C2]">
-            {profile.bio.length}/250 characters
-          </p>
-        </div>
+      <div className="mt-6 rounded-xl border border-[#E7ECF6] bg-[#F8FAFF] p-4 dark:border-[#49333D] dark:bg-[#30232B]">
+        <p className="text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]">
+          Profile data
+        </p>
+        <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
+          Your name and phone number are saved to your Equilx account.
+          Country, timezone, language and bio are not currently part
+          of the profile update API.
+        </p>
       </div>
     </section>
   );
 
-  // ====================================================
+  // ----------------------------------------------------
   // PREFERENCES SECTION
-  // ====================================================
+  // ----------------------------------------------------
 
   const renderPreferences = () => (
     <section>
       <SectionHeading
         icon={Palette}
         title="App preferences"
-        description="Customise how Equilx IELTS looks and fits into your routine."
+        description="Customise how Equilx looks and fits into your routine."
       />
 
       <div>
         <h3 className="text-xs font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
           Appearance
         </h3>
-
         <p className="mt-1 text-[11px] text-[#8290AA] dark:text-[#C1B5C0]">
           Choose your preferred interface theme.
         </p>
@@ -692,7 +680,7 @@ export default function SettingsPage() {
                 onClick={() =>
                   updatePreference("appearance", item.name)
                 }
-                className={`rounded-2xl border p-4 text-left transition ${
+                className={`rounded-2xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
                   selected
                     ? "border-[#FF8199] bg-[#FFF7F9] dark:bg-[#30232B]"
                     : "border-[#E7ECF6] bg-white hover:border-[#CAD5E8] dark:border-[#49333D] dark:bg-[#211e27]"
@@ -708,19 +696,13 @@ export default function SettingsPage() {
                   >
                     <Icon size={19} />
                   </span>
-
                   {selected && (
-                    <CheckCircle2
-                      size={17}
-                      className="text-[#FF2454]"
-                    />
+                    <CheckCircle2 size={17} className="text-[#FF2454]" />
                   )}
                 </div>
-
                 <p className="mt-4 text-xs font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
                   {item.name}
                 </p>
-
                 <p className="mt-1 text-[10px] text-[#8290AA] dark:text-[#C1B5C0]">
                   {item.description}
                 </p>
@@ -730,8 +712,8 @@ export default function SettingsPage() {
         </div>
 
         <p className="mt-3 text-[10px] leading-5 text-[#9AA8C2]">
-          Theme selection is saved in this page's state only. Full dark mode
-          requires theme support throughout the application.
+          Appearance selection is local to this page. Application-wide
+          theme persistence is not connected.
         </p>
       </div>
 
@@ -742,20 +724,16 @@ export default function SettingsPage() {
 
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <div>
-            <label
-              htmlFor="density"
-              className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-            >
+            <label htmlFor="density" className={labelClass}>
               Dashboard layout
             </label>
-
             <select
               id="density"
               value={preferences.dashboardDensity}
               onChange={(event) =>
                 updatePreference("dashboardDensity", event.target.value)
               }
-              className="w-full rounded-xl border border-[#E4EAF5] bg-white px-3 py-3 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+              className={inputClass}
             >
               <option>Comfortable</option>
               <option>Compact</option>
@@ -763,20 +741,16 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="weeklyGoal"
-              className="mb-2 block text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]"
-            >
+            <label htmlFor="weeklyGoal" className={labelClass}>
               Weekly study goal
             </label>
-
             <select
               id="weeklyGoal"
               value={preferences.weeklyGoal}
               onChange={(event) =>
                 updatePreference("weeklyGoal", event.target.value)
               }
-              className="w-full rounded-xl border border-[#E4EAF5] bg-white px-3 py-3 text-xs text-[#10265F] outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA]"
+              className={inputClass}
             >
               <option>2 hours</option>
               <option>5 hours</option>
@@ -802,9 +776,9 @@ export default function SettingsPage() {
     </section>
   );
 
-  // ====================================================
+  // ----------------------------------------------------
   // NOTIFICATIONS SECTION
-  // ====================================================
+  // ----------------------------------------------------
 
   const renderNotifications = () => (
     <section>
@@ -819,15 +793,14 @@ export default function SettingsPage() {
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#4561B5] dark:bg-[#211e27]">
             <Mail size={17} />
           </span>
-
           <div>
             <p className="text-xs font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
               Email notifications
             </p>
-
             <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
-              These preferences control the options in this interface.
-              Actual emails require notification services and backend support.
+              These controls are currently local preferences. Actual
+              notification delivery and saved preferences require
+              backend support.
             </p>
           </div>
         </div>
@@ -837,9 +810,7 @@ export default function SettingsPage() {
         title="Account and product updates"
         description="Important updates about your Equilx account."
         checked={notifications.emailUpdates}
-        onChange={(value) =>
-          updateNotification("emailUpdates", value)
-        }
+        onChange={(value) => updateNotification("emailUpdates", value)}
       />
 
       <SettingsRow
@@ -890,9 +861,9 @@ export default function SettingsPage() {
     </section>
   );
 
-  // ====================================================
+  // ----------------------------------------------------
   // SECURITY SECTION
-  // ====================================================
+  // ----------------------------------------------------
 
   const renderSecurity = () => (
     <section>
@@ -907,12 +878,10 @@ export default function SettingsPage() {
           size={20}
           className="mt-0.5 shrink-0 text-[#00A879]"
         />
-
         <div>
           <p className="text-xs font-extrabold text-[#176B51] dark:text-[#78D6B3]">
             Keep your account secure
           </p>
-
           <p className="mt-1 text-[11px] leading-5 text-[#548B79] dark:text-[#A3C9BA]">
             Use a strong, unique password and never share your login details.
           </p>
@@ -922,7 +891,6 @@ export default function SettingsPage() {
       <h3 className="text-sm font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
         Change password
       </h3>
-
       <p className="mt-1 text-[11px] text-[#8290AA] dark:text-[#C1B5C0]">
         Choose a password with at least 8 characters.
       </p>
@@ -951,39 +919,64 @@ export default function SettingsPage() {
         </p>
       )}
 
+      <button
+        type="button"
+        onClick={savePassword}
+        disabled={saving}
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-xs font-extrabold text-white transition hover:bg-[#E81745] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving ? (
+          <LoaderCircle size={16} className="animate-spin" />
+        ) : (
+          <Save size={16} />
+        )}
+        Update password
+      </button>
+
       <div className="mt-7 border-t border-[#EEF1F8] pt-6 dark:border-[#49333D]">
         <h3 className="text-sm font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
-          Account sessions
+          Account security
         </h3>
 
-        <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
-          Manage access to your account on this device.
+        <p className="mt-1 text-[11px] text-[#8290AA] dark:text-[#C1B5C0]">
+          Security information retrieved from your account.
         </p>
 
-        <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D]">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#1680E8]">
-            <Laptop size={20} />
-          </span>
+        {security ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D]">
+              <p className="text-[10px] text-[#8290AA]">Account status</p>
+              <p className="mt-2 text-sm font-bold text-[#10265F] dark:text-white">
+                {security.accountActive ? "Active" : "Inactive"}
+              </p>
+            </div>
 
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-extrabold text-[#10265F] dark:text-[#FFF8FA]">
-              Current browser session
-            </p>
+            <div className="rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D]">
+              <p className="text-[10px] text-[#8290AA]">Email verification</p>
+              <p className="mt-2 text-sm font-bold text-[#10265F] dark:text-white">
+                {security.emailVerified ? "Verified" : "Not verified"}
+              </p>
+            </div>
 
-            <p className="mt-1 text-[10px] text-[#8290AA] dark:text-[#C1B5C0]">
-              This device · Session status not verified by a server
-            </p>
+            <div className="rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D] sm:col-span-2">
+              <p className="text-[10px] text-[#8290AA]">
+                Active login sessions
+              </p>
+              <p className="mt-2 text-sm font-bold text-[#10265F] dark:text-white">
+                {security.activeRefreshSessions ?? 0}
+              </p>
+            </div>
           </div>
-
-          <span className="rounded-full bg-[#E4F8F0] px-2.5 py-1 text-[9px] font-bold text-[#008B66]">
-            Current
-          </span>
-        </div>
+        ) : (
+          <p className="mt-4 text-xs text-[#8290AA]">
+            Security details are not available.
+          </p>
+        )}
 
         <button
           type="button"
           onClick={() => setShowLogoutModal(true)}
-          className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[#E7ECF6] px-4 py-3 text-xs font-bold text-[#506995] transition hover:bg-[#F8FAFF] dark:border-[#49333D] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
+          className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#E7ECF6] px-4 py-3 text-xs font-bold text-[#506995] transition hover:bg-[#F8FAFF] dark:border-[#49333D] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
         >
           <LogOut size={15} />
           Sign out
@@ -1002,16 +995,22 @@ export default function SettingsPage() {
             </h3>
 
             <p className="mt-1 text-[11px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
-              Account deletion may permanently remove your profile, learning
-              history and associated data. This demo does not delete any data.
+              Self-service account deletion is not available in the
+              current backend API. Contact support for account-related
+              requests.
             </p>
 
             <button
               type="button"
-              onClick={() => setShowDeleteModal(true)}
+              onClick={() =>
+                showNotice(
+                  "Self-service account deletion is not currently supported by the backend.",
+                  "error"
+                )
+              }
               className="mt-3 rounded-lg border border-[#F4D5DD] px-3 py-2 text-[11px] font-bold text-[#D9284F] transition hover:bg-[#FFF0F3]"
             >
-              Request account deletion
+              Account deletion information
             </button>
           </div>
         </div>
@@ -1019,32 +1018,46 @@ export default function SettingsPage() {
     </section>
   );
 
-  // ====================================================
+  // ----------------------------------------------------
   // ACTIVE SECTION
-  // ====================================================
+  // ----------------------------------------------------
 
   const renderActiveSection = () => {
     switch (activeSection) {
       case "profile":
         return renderProfile();
-
       case "preferences":
         return renderPreferences();
-
       case "notifications":
         return renderNotifications();
-
       case "security":
         return renderSecurity();
-
       default:
         return renderProfile();
     }
   };
 
-  // ====================================================
+  // ----------------------------------------------------
+  // SAVE ACTION
+  // ----------------------------------------------------
+
+  const handleSave = () => {
+    if (activeSection === "profile") {
+      saveProfile();
+      return;
+    }
+
+    if (activeSection === "security") {
+      savePassword();
+      return;
+    }
+
+    saveLocalSettings();
+  };
+
+  // ----------------------------------------------------
   // MAIN UI
-  // ====================================================
+  // ----------------------------------------------------
 
   return (
     <StudentLayout>
@@ -1064,26 +1077,22 @@ export default function SettingsPage() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-xs leading-6 text-[#71809D] dark:text-[#C1B5C0] sm:text-sm">
-              Manage your profile, customise your learning experience and
-              control your account preferences.
+              Manage your profile, customise your learning experience
+              and control your account preferences.
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start rounded-xl border border-[#E7ECF6] bg-white px-3 py-2.5 dark:border-[#49333D] dark:bg-[#211e27] sm:self-auto">
             <ShieldCheck size={17} className="text-[#00A879]" />
-
             <span className="text-[10px] font-bold text-[#506995] dark:text-[#C1B5C0]">
               Account settings
             </span>
           </div>
         </section>
 
-        {/* SETTINGS HERO - IMAGE BANNER */}
+        {/* SETTINGS HERO */}
 
         <section className="relative grid min-h-[210px] overflow-hidden rounded-2xl border border-[#E7ECF6] dark:border-[#49333D] lg:grid-cols-[minmax(0,1fr)_380px]">
-
-          {/* LEFT CONTENT */}
-
           <div className="relative z-10 flex flex-col justify-center bg-gradient-to-r from-white via-[#F5F7FF] to-[#FFF0F4] p-5 dark:from-[#211e27] dark:via-[#29232D] dark:to-[#30232B] sm:p-7 lg:p-9">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#FF2454]">
               Your account, your way
@@ -1107,7 +1116,6 @@ export default function SettingsPage() {
                 <p className="truncate text-xs font-bold text-[#10265F] dark:text-[#FFF8FA]">
                   {profile.fullName || "Your profile"}
                 </p>
-
                 <p className="mt-1 text-[10px] text-[#71809D] dark:text-[#C1B5C0]">
                   Student account
                 </p>
@@ -1115,13 +1123,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* RIGHT IMAGE */}
-
           <div className="relative min-h-[190px] overflow-hidden sm:min-h-[230px] lg:min-h-full">
             <img
-              src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1100&q=90"
-              alt="Students studying at a university"
-              className="absolute inset-0 h-full w-full object-cover"
+              src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85"
+              className="absolute inset-0 h-full w-full object-cover object-center"
+              alt="Students studying together"
+
             />
           </div>
         </section>
@@ -1186,7 +1193,6 @@ export default function SettingsPage() {
                     }`}
                   >
                     <Icon size={18} />
-
                     <span className="text-xs font-bold">
                       {section.label}
                     </span>
@@ -1212,8 +1218,8 @@ export default function SettingsPage() {
               </h3>
 
               <p className="mt-2 text-[10px] leading-5 text-[#8290AA] dark:text-[#C1B5C0]">
-                Contact your institute support team if you need help managing
-                your account.
+                Contact your institute support team if you need help
+                managing your account.
               </p>
             </div>
           </aside>
@@ -1221,68 +1227,54 @@ export default function SettingsPage() {
           {/* RIGHT CONTENT */}
 
           <div className="min-w-0 rounded-2xl border border-[#E7ECF6] bg-white p-4 dark:border-[#49333D] dark:bg-[#211e27] sm:p-6 lg:p-7">
-            {renderActiveSection()}
+            {loading ? (
+              <div className="flex min-h-[350px] flex-col items-center justify-center">
+                <LoaderCircle
+                  size={30}
+                  className="animate-spin text-[#FF2454]"
+                />
+                <p className="mt-3 text-xs font-semibold text-[#71809D]">
+                  Loading your account settings...
+                </p>
+              </div>
+            ) : (
+              <>
+                {renderActiveSection()}
 
-            <div className="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-[#EEF1F8] pt-5 dark:border-[#49333D] sm:flex-row sm:items-center">
-              <p className="text-[10px] leading-5 text-[#9AA8C2]">
-                Changes shown here are local until connected to your backend.
-              </p>
+                <div className="mt-7 flex flex-col-reverse justify-between gap-3 border-t border-[#EEF1F8] pt-5 dark:border-[#49333D] sm:flex-row sm:items-center">
+                  <p className="text-[10px] leading-5 text-[#9AA8C2]">
+                    {activeSection === "profile"
+                      ? "Profile changes are saved to your account."
+                      : activeSection === "security"
+                        ? "Password changes are handled securely by the backend."
+                        : "These settings are currently local to this page."}
+                  </p>
 
-              {/* SAVE BUTTON - NO SHADOW */}
-
-              <button
-                type="button"
-                onClick={saveSettings}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-xs font-extrabold text-white transition-colors hover:bg-[#E81745] focus:outline-none focus:ring-2 focus:ring-[#FF8199] focus:ring-offset-2 dark:focus:ring-offset-[#211e27]"
-              >
-                <Save size={16} />
-                Save changes
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-xs font-extrabold text-white transition-colors hover:bg-[#E81745] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <LoaderCircle size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    {activeSection === "profile"
+                      ? "Save profile"
+                      : activeSection === "security"
+                        ? "Update password"
+                        : "Save changes"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* DELETE ACCOUNT CONFIRMATION */}
-
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#081633]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-[#211e27] sm:p-6">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454]">
-              <Trash2 size={23} />
-            </span>
-
-            <h2 className="mt-4 text-lg font-black text-[#10265F] dark:text-[#FFF8FA]">
-              Request account deletion?
-            </h2>
-
-            <p className="mt-2 text-xs leading-6 text-[#71809D] dark:text-[#C1B5C0]">
-              This is a confirmation preview only. No account or learning data
-              will be deleted.
-            </p>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 rounded-xl border border-[#E4EAF5] px-4 py-3 text-xs font-bold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                className="flex-1 rounded-xl bg-[#FF2454] px-4 py-3 text-xs font-bold text-white"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SIGN OUT CONFIRMATION */}
+      {/* LOGOUT CONFIRMATION */}
 
       {showLogoutModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#081633]/60 p-4 backdrop-blur-sm">
@@ -1296,14 +1288,14 @@ export default function SettingsPage() {
             </h2>
 
             <p className="mt-2 text-xs leading-6 text-[#71809D] dark:text-[#C1B5C0]">
-              Connect your authentication logout handler to end the current
-              session securely.
+              You will need to log in again to access your account.
             </p>
 
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(false)}
+                disabled={loggingOut}
                 className="flex-1 rounded-xl border border-[#E4EAF5] px-4 py-3 text-xs font-bold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
               >
                 Stay signed in
@@ -1311,17 +1303,14 @@ export default function SettingsPage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setShowLogoutModal(false);
-
-                  showNotice(
-                    "Logout is not connected. Add your authentication logout handler.",
-                    "error"
-                  );
-                }}
-                className="flex-1 rounded-xl bg-[#10265F] px-4 py-3 text-xs font-bold text-white"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#10265F] px-4 py-3 text-xs font-bold text-white disabled:opacity-60"
               >
-                Continue
+                {loggingOut && (
+                  <LoaderCircle size={15} className="animate-spin" />
+                )}
+                Sign out
               </button>
             </div>
           </div>

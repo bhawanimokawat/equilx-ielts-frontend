@@ -12,27 +12,45 @@ import {
 
 import { Link } from "react-router-dom";
 import AuthNavbar from "../../components/common/AuthNavbar";
+import authService from "../../services/authService";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Forgot Password API Integration
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setLoading(true);
     setMessage("");
+    setError("");
+
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      // Backend forgot-password API integration pending.
-      console.log("Reset password requested:", email);
-
-      setMessage(
-        "Your form is ready. Connect the backend API to send the reset email."
+      const response = await authService.forgotPassword(
+        email.trim()
       );
+
+      if (response.success) {
+        setMessage(
+          response.message ||
+          "If an account exists with this email, password reset instructions will be sent."
+        );
+      } else {
+        setError(
+          response.message || "Unable to process your request."
+        );
+      }
     } catch (err) {
-      setMessage(
+      setError(
         err.message || "Unable to process your request. Please try again."
       );
     } finally {
@@ -176,6 +194,7 @@ export default function ForgotPassword() {
                       onChange={(e) => {
                         setEmail(e.target.value);
                         setMessage("");
+                        setError("");
                       }}
                       placeholder="name@example.com"
                       className="w-full h-14 pl-12 pr-4 rounded-xl border border-slate-200 dark:border-[#3b3441] bg-slate-50 dark:bg-[#19171e] text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-[#77717f] text-sm outline-none transition-all duration-200 focus:bg-white dark:focus:bg-[#211e27] focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10"
@@ -185,7 +204,7 @@ export default function ForgotPassword() {
 
                 </div>
 
-                {/* STATUS MESSAGE */}
+                {/* SUCCESS MESSAGE */}
                 {message && (
                   <div
                     role="status"
@@ -197,6 +216,21 @@ export default function ForgotPassword() {
                     />
 
                     <p className="leading-6">{message}</p>
+                  </div>
+                )}
+
+                {/* ERROR MESSAGE */}
+                {error && (
+                  <div
+                    role="alert"
+                    className="flex gap-3 items-start p-4 rounded-xl bg-red-50 dark:bg-[#3b2025] text-red-600 dark:text-red-300 text-sm border border-red-100 dark:border-[#59303e]"
+                  >
+                    <ShieldCheck
+                      size={19}
+                      className="shrink-0 mt-0.5"
+                    />
+
+                    <p className="leading-6">{error}</p>
                   </div>
                 )}
 

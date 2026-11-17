@@ -1,4 +1,5 @@
-
+import { Link, useNavigate } from "react-router-dom";
+import authService from "../../services/authService";
 import React, { useState } from "react";
 import {
   User,
@@ -15,10 +16,11 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { Link } from "react-router-dom";
 import AuthNavbar from "../../components/common/AuthNavbar";
 
 export default function RegistrationPage() {
+  const navigate = useNavigate();
+const [loading, setLoading] = useState(false);
   const [accountType, setAccountType] = useState("individual");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -58,32 +60,54 @@ export default function RegistrationPage() {
     setError("");
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError("");
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
 
-    if (!allRequirementsMet) {
-      setError("Please meet all password requirements.");
-      return;
-    }
+  if (!formData.fullName.trim()) {
+    setError("Please enter your full name.");
+    return;
+  }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+  if (!allRequirementsMet) {
+    setError("Please meet all password requirements.");
+    return;
+  }
 
-    if (!formData.agree) {
-      setError("Please accept Terms & Conditions.");
-      return;
-    }
+  if (formData.password !== formData.confirmPassword) {
+    setError("Passwords do not match.");
+    return;
+  }
 
-    // Backend API integration pending
-    console.log("Registration submitted:", {
-      accountType,
-      fullName: formData.fullName,
-      email: formData.email,
+  if (!formData.agree) {
+    setError("Please accept Terms & Conditions.");
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const response = await authService.register({
+      name: formData.fullName.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
     });
-  };
+
+    if (response.success && response.data?.verificationRequired) {
+      navigate("/verify-email", {
+        state: {
+          email: formData.email.trim(),
+        },
+      });
+    } else {
+      setError(response.message || "Registration failed.");
+    }
+  } catch (err) {
+    setError(err.message || "Unable to register. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#17151b] text-slate-800 dark:text-[#f8f7fa] font-sans transition-colors duration-300">
@@ -441,12 +465,13 @@ export default function RegistrationPage() {
 
               {/* SUBMIT BUTTON */}
               <button
-                type="submit"
-                className="w-full bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 text-sm"
-              >
-                Create account
-                <span>→</span>
-              </button>
+  type="submit"
+  disabled={loading}
+  className="w-full bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-rose-500/20 hover:shadow-rose-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 text-sm disabled:opacity-60"
+>
+  {loading ? "Creating account..." : "Create account"}
+  {!loading && <span>→</span>}
+</button>
 
               {/* DIVIDER */}
               <div className="relative flex py-2 items-center">

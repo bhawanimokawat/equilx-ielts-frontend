@@ -1,1051 +1,1198 @@
-import React, { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import StudentLayout from "./StudentLayout";
+import speakingService from "../../services/speakingService";
 import {
   Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  Volume2,
-  VolumeX,
+  Square,
   Play,
-  Pause,
-  RotateCcw,
   Clock,
-  CalendarDays,
-  Headphones,
-  MessageCircle,
-  Sparkles,
-  ChevronRight,
-  CheckCircle2,
-  Circle,
-  ArrowRight,
-  X,
-  Send,
   BookOpen,
   Target,
-  ShieldCheck,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
   AlertCircle,
+  Loader2,
+  ShieldCheck,
+  RotateCcw,
+  X,
+  History,
+  Upload,
+  Headphones,
 } from "lucide-react";
 
-const sessions = [
-  {
-    id: 1,
-    title: "IELTS Speaking Mock Test",
-    part: "Full Speaking Test",
-    date: "Today",
-    time: "11:30 AM",
-    duration: "15 minutes",
-    trainer: "Academic Trainer",
-    type: "Mock test",
-    status: "Upcoming",
-    color: "pink",
-  },
-  {
-    id: 2,
-    title: "Speaking Part 2 Practice",
-    part: "Cue Card Practice",
-    date: "Tomorrow",
-    time: "2:00 PM",
-    duration: "12 minutes",
-    trainer: "Academic Trainer",
-    type: "Practice",
-    status: "Upcoming",
-    color: "blue",
-  },
-  {
-    id: 3,
-    title: "Fluency & Pronunciation",
-    part: "Speaking Part 1",
-    date: "18 Oct 2026",
-    time: "10:00 AM",
-    duration: "10 minutes",
-    trainer: "Academic Trainer",
-    type: "Practice",
-    status: "Completed",
-    color: "green",
-  },
-];
+const unwrap = (response) => response?.data ?? response ?? {};
 
-const practiceQuestions = [
-  {
-    part: "Part 1",
-    title: "Introduction and Interview",
-    duration: "4–5 minutes",
-    description:
-      "Answer familiar questions about yourself, your studies, your home and your interests.",
-    question: "Do you enjoy learning new things? Why or why not?",
-    tip: "Give a direct answer and add a reason or a personal example.",
-  },
-  {
-    part: "Part 2",
-    title: "Long Turn",
-    duration: "3–4 minutes",
-    description:
-      "Speak about a topic for up to two minutes after one minute of preparation.",
-    question:
-      "Describe a book that you enjoyed reading. You should say what the book was, when you read it, what it was about, and explain why you enjoyed it.",
-    tip: "Use your preparation minute to note keywords for each cue-card point.",
-  },
-  {
-    part: "Part 3",
-    title: "Discussion",
-    duration: "4–5 minutes",
-    description:
-      "Discuss more abstract questions related to the Part 2 topic.",
-    question:
-      "How do you think reading habits have changed in recent years?",
-    tip: "Explain your opinion, support it with an example, and consider another perspective.",
-  },
-];
+const getErrorMessage = (error) =>
+  error?.message || "Something went wrong. Please try again.";
 
-function Panel({ children, className = "" }) {
+const getQuestionText = (question) => {
+  const content = question?.content;
+
+  if (typeof content === "string") return content;
+
+  if (content && typeof content === "object") {
+    return (
+      content.question ||
+      content.text ||
+      content.prompt ||
+      content.title ||
+      JSON.stringify(content)
+    );
+  }
+
+  return "Question content is not available.";
+};
+
+const getPartNumber = (question) => {
+  const position = Number(question?.testPart?.position);
+
+  if (position >= 1 && position <= 3) return position;
+
+  const title = String(question?.testPart?.title || "");
+  const match = title.match(/part\s*([1-3])/i);
+
+  return match ? Number(match[1]) : null;
+};
+
+const formatDate = (date) => {
+  if (!date) return "Not available";
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return "Not available";
+
+  return parsed.toLocaleString();
+};
+
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
+function Card({ children, className = "" }) {
   return (
     <section
-      className={`rounded-2xl border border-[#E7ECF6] bg-white p-4 shadow-[0_3px_14px_rgba(16,38,95,0.035)] sm:p-5 dark:border-[#49333D] dark:bg-[#211e27] ${className}`}
+      className={`rounded-2xl border border-[#E7ECF6] bg-white p-5 shadow-sm dark:border-[#49333D] dark:bg-[#211e27] ${className}`}
     >
       {children}
     </section>
   );
 }
 
-function SectionHeading({ icon: Icon, title, description, action }) {
+function Notice({ type = "error", children, onClose }) {
+  const styles =
+    type === "success"
+      ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300"
+      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300";
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]">
-          <Icon size={20} />
-        </span>
-
-        <div>
-          <h2 className="text-base font-black text-[#10265F] dark:text-[#FFF8FA]">
-            {title}
-          </h2>
-
-          {description && (
-            <p className="mt-1 text-xs leading-5 text-[#71809D] dark:text-[#C1B5C0]">
-              {description}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {action}
+    <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${styles}`}>
+      {type === "success" ? (
+        <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
+      ) : (
+        <AlertCircle size={18} className="mt-0.5 shrink-0" />
+      )}
+      <div className="flex-1">{children}</div>
+      {onClose && (
+        <button type="button" onClick={onClose} aria-label="Close notification">
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 }
 
 export default function LiveSpeakingPage() {
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("practice");
 
-  const [activePart, setActivePart] = useState(0);
-  const [activeTab, setActiveTab] = useState("All sessions");
-  const [selectedSession, setSelectedSession] = useState(null);
-  const [showPractice, setShowPractice] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [micEnabled, setMicEnabled] = useState(false);
-  const [cameraEnabled, setCameraEnabled] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [answer, setAnswer] = useState("");
-  const [prepSeconds, setPrepSeconds] = useState(60);
-  const [prepRunning, setPrepRunning] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("11:00");
-  const [scheduleType, setScheduleType] = useState("Mock test");
-  const [customSessions, setCustomSessions] = useState([]);
-  const [notice, setNotice] = useState("");
-  const [submittedAnswers, setSubmittedAnswers] = useState([]);
+  const [tests, setTests] = useState([]);
+  const [selectedTestId, setSelectedTestId] = useState("");
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [selectedModuleId, setSelectedModuleId] = useState("");
+  const [selectedPartId, setSelectedPartId] = useState("");
 
+  const [history, setHistory] = useState([]);
+  const [attempt, setAttempt] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+
+  const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [recordingBusy, setRecordingBusy] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [consent, setConsent] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingBlob, setRecordingBlob] = useState(null);
+  const [submissionId, setSubmissionId] = useState("");
+  const [transcriptionStatus, setTranscriptionStatus] = useState("");
+
+  const recorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
   const timerRef = useRef(null);
-  const allSessions = [...customSessions, ...sessions];
+  const recordingStartedAtRef = useRef(null);
 
-  const visibleSessions = allSessions.filter((session) => {
-    if (activeTab === "All sessions") return true;
-    return session.status === activeTab;
-  });
+  const modules =
+    selectedTest?.publishedVersion?.modules || [];
 
-  const startPreparation = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+  const speakingModules = modules.filter(
+    (module) => module.section === "SPEAKING"
+  );
 
-    setPrepSeconds(60);
-    setPrepRunning(true);
+  const selectedModule = speakingModules.find(
+    (module) => module.id === selectedModuleId
+  );
 
-    timerRef.current = setInterval(() => {
-      setPrepSeconds((previous) => {
-        if (previous <= 1) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-          setPrepRunning(false);
-          return 0;
-        }
+  const selectedParts = selectedModule?.parts || [];
 
-        return previous - 1;
-      });
-    }, 1000);
+  const currentQuestion = questions[activeQuestionIndex] || null;
+
+  const loadTests = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await speakingService.getPracticeTests();
+      const payload = unwrap(response);
+
+      const items = Array.isArray(payload.items) ? payload.items : [];
+
+      const speakingTests = items.filter((test) =>
+        test?.publishedVersion?.modules?.some(
+          (module) => module.section === "SPEAKING"
+        )
+      );
+
+      setTests(speakingTests);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+
+    try {
+      const response = await speakingService.getPracticeHistory();
+      const payload = unwrap(response);
+      setHistory(Array.isArray(payload.items) ? payload.items : []);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTests();
+    loadHistory();
+  }, [loadTests, loadHistory]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.stop();
+      }
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const handleTestChange = async (testId) => {
+    setSelectedTestId(testId);
+    setSelectedTest(null);
+    setSelectedModuleId("");
+    setSelectedPartId("");
+    setError("");
+    setSuccess("");
+
+    if (!testId) return;
+
+    setDetailsLoading(true);
+
+    try {
+      const response =
+        await speakingService.getPracticeTestDetails(testId);
+
+      const details = unwrap(response);
+
+      setSelectedTest(details);
+
+      const availableModules =
+        details?.publishedVersion?.modules || [];
+
+      const firstSpeakingModule = availableModules.find(
+        (module) => module.section === "SPEAKING"
+      );
+
+      if (firstSpeakingModule) {
+        setSelectedModuleId(firstSpeakingModule.id);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
-  const stopPreparation = () => {
+  const startPractice = async () => {
+    if (!selectedTest || !selectedModuleId) {
+      setError("Please select a published Speaking module.");
+      return;
+    }
+
+    const versionId = selectedTest?.publishedVersion?.id;
+
+    if (!versionId) {
+      setError("Published test version ID was not returned by the backend.");
+      return;
+    }
+
+    // The backend requires exactly one of moduleId or partId.
+    const scope = selectedPartId
+      ? { partId: selectedPartId }
+      : { moduleId: selectedModuleId };
+
+    setStarting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const startResponse = await speakingService.startPracticeAttempt(
+        versionId,
+        scope
+      );
+
+      // Practice controller returns the attempt directly in data.
+      const newAttempt = unwrap(startResponse);
+
+      if (!newAttempt?.id) {
+        throw new Error("Backend did not return the practice attempt ID.");
+      }
+
+      const [questionResponse, answerResponse] = await Promise.all([
+        speakingService.getAttemptQuestions(newAttempt.id),
+        speakingService.getAttemptAnswers(newAttempt.id),
+      ]);
+
+      const questionPayload = unwrap(questionResponse);
+      const answerPayload = unwrap(answerResponse);
+
+      const questionItems = Array.isArray(questionPayload.questions)
+        ? questionPayload.questions
+        : [];
+
+      const answerItems = Array.isArray(answerPayload.answers)
+        ? answerPayload.answers
+        : [];
+
+      const savedAnswers = {};
+
+      answerItems.forEach((item) => {
+        savedAnswers[item.questionId] = item.answer;
+      });
+
+      setAttempt(newAttempt);
+      setQuestions(questionItems);
+      setAnswers(savedAnswers);
+      setActiveQuestionIndex(0);
+      setSubmissionId("");
+      setRecordingBlob(null);
+      setTranscriptionStatus("");
+      setRecordingSeconds(0);
+      setConsent(false);
+
+      if (!questionItems.length) {
+        setSuccess(
+          "Attempt started, but the selected Speaking content has no questions."
+        );
+      } else {
+        setSuccess("Speaking practice attempt started successfully.");
+      }
+
+      await loadHistory();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const saveAnswer = async () => {
+    if (!attempt?.id || !currentQuestion?.id) return;
+
+    const answer = answers[currentQuestion.id];
+
+    if (
+      answer === undefined ||
+      answer === null ||
+      (typeof answer === "string" && !answer.trim())
+    ) {
+      setError("Please write your answer before saving.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await speakingService.saveAnswer(
+        attempt.id,
+        currentQuestion.id,
+        answer
+      );
+
+      setSuccess("Answer saved successfully.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const stopTracks = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const startRecording = async () => {
+    if (!attempt?.id) {
+      setError("Start a practice attempt before recording.");
+      return;
+    }
+
+    if (!consent) {
+      setError("Please give recording consent first.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      setError("Audio recording is not supported in this browser.");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setRecordingBlob(null);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      streamRef.current = stream;
+
+      const supportedTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg",
+        "audio/wav",
+      ];
+
+      const mimeType = supportedTypes.find((type) =>
+        MediaRecorder.isTypeSupported(type)
+      );
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setError("An error occurred while recording audio.");
+        setIsRecording(false);
+        stopTracks();
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
+        setRecordingBlob(blob);
+        setIsRecording(false);
+        stopTracks();
+      };
+
+      recorder.start();
+      recordingStartedAtRef.current = Date.now();
+      setRecordingSeconds(0);
+      setIsRecording(true);
+
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor(
+          (Date.now() - recordingStartedAtRef.current) / 1000
+        );
+
+        setRecordingSeconds(elapsed);
+
+        if (elapsed >= 900 && recorder.state === "recording") {
+          recorder.stop();
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      }, 1000);
+    } catch (err) {
+      setError(
+        err?.name === "NotAllowedError"
+          ? "Microphone permission was denied. Please allow microphone access."
+          : getErrorMessage(err)
+      );
+      stopTracks();
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
+    }
+
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-
-    setPrepRunning(false);
   };
 
-  const resetPreparation = () => {
-    stopPreparation();
-    setPrepSeconds(60);
-  };
-
-  const handleSchedule = (event) => {
-    event.preventDefault();
-
-    if (!scheduleDate || !scheduleTime) {
-      setNotice("Please select a date and time for your session.");
+  const uploadAndSubmitRecording = async () => {
+    if (!recordingBlob || !attempt?.id) {
+      setError("Please record your answer first.");
       return;
     }
 
-    const newSession = {
-      id: Date.now(),
-      title:
-        scheduleType === "Mock test"
-          ? "IELTS Speaking Mock Test"
-          : "IELTS Speaking Practice",
-      part:
-        scheduleType === "Mock test"
-          ? "Full Speaking Test"
-          : "Practice Session",
-      date: scheduleDate,
-      time: scheduleTime,
-      duration: scheduleType === "Mock test" ? "15 minutes" : "10 minutes",
-      trainer: "Trainer assignment pending",
-      type: scheduleType,
-      status: "Upcoming",
-      color: "pink",
-    };
-
-    setCustomSessions((previous) => [newSession, ...previous]);
-    setShowSchedule(false);
-    setScheduleDate("");
-    setScheduleTime("11:00");
-    setNotice("Your demo session has been added to the schedule.");
-  };
-
-  const submitPractice = (event) => {
-    event.preventDefault();
-
-    if (!answer.trim()) {
-      setNotice("Write a practice answer before submitting.");
+    if (recordingBlob.size > 25 * 1024 * 1024) {
+      setError("Recording exceeds the backend 25 MB file limit.");
       return;
     }
 
-    setSubmittedAnswers((previous) => [
-      {
-        id: Date.now(),
-        part: practiceQuestions[activePart].part,
-        question: practiceQuestions[activePart].question,
-        answer: answer.trim(),
-        date: new Date().toLocaleString(),
-      },
-      ...previous,
-    ]);
+    const partNumber = getPartNumber(currentQuestion);
 
-    setNotice(
-      "Your answer was saved in this demo. Connect a speech or AI assessment service for real feedback."
+    if (!partNumber) {
+      setError(
+        "Could not determine the Speaking part number from the selected question."
+      );
+      return;
+    }
+
+    const durationSeconds = Math.max(
+      1,
+      Math.min(900, recordingSeconds)
     );
 
-    setAnswer("");
-    setShowPractice(false);
-    resetPreparation();
+    setRecordingBusy(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      let currentSubmissionId = submissionId;
+
+      if (!currentSubmissionId) {
+        const submissionResponse =
+          await speakingService.createSubmission(
+            attempt.id,
+            partNumber
+          );
+
+        const submission = unwrap(submissionResponse);
+
+        if (!submission?.id) {
+          throw new Error("Speaking submission ID was not returned.");
+        }
+
+        currentSubmissionId = submission.id;
+        setSubmissionId(currentSubmissionId);
+      }
+
+      await speakingService.uploadRecording(
+        currentSubmissionId,
+        recordingBlob,
+        durationSeconds
+      );
+
+      const completeResponse =
+        await speakingService.completeSubmission(currentSubmissionId);
+
+      const completePayload = unwrap(completeResponse);
+
+      setTranscriptionStatus(
+        completePayload?.transcription?.status || "QUEUED"
+      );
+
+      setRecordingBlob(null);
+      setSuccess(
+        "Recording uploaded. Transcription has been queued by the backend."
+      );
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setRecordingBusy(false);
+    }
   };
 
-  React.useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+  const handleWithdrawConsent = async () => {
+    if (!submissionId) {
+      setConsent(false);
+      setRecordingBlob(null);
+      setSuccess("Recording consent disabled.");
+      return;
+    }
 
-  const currentQuestion = practiceQuestions[activePart];
+    setRecordingBusy(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await speakingService.withdrawConsent(submissionId);
+
+      setConsent(false);
+      setSubmissionId("");
+      setRecordingBlob(null);
+      setTranscriptionStatus("");
+      setSuccess("Recording consent withdrawn successfully.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  const resetPractice = () => {
+    if (isRecording) stopRecording();
+
+    setAttempt(null);
+    setQuestions([]);
+    setAnswers({});
+    setActiveQuestionIndex(0);
+    setConsent(false);
+    setRecordingBlob(null);
+    setSubmissionId("");
+    setTranscriptionStatus("");
+    setRecordingSeconds(0);
+    setError("");
+    setSuccess("");
+  };
+
+  const updateAnswer = (value) => {
+    if (!currentQuestion?.id) return;
+
+    setAnswers((previous) => ({
+      ...previous,
+      [currentQuestion.id]: value,
+    }));
+  };
 
   return (
     <StudentLayout>
-      <div className="speaking-page mx-auto max-w-[1800px] space-y-5 text-[#10265F] dark:text-[#FFF8FA]">
-
-        {/* DARK MODE SUPPORT */}
-        <style>{`
-          html.dark .speaking-page {
-            color: #FFF8FA;
-          }
-
-          html.dark .speaking-page section.rounded-2xl,
-          html.dark .speaking-page .rounded-2xl.border {
-            background-color: #211e27;
-            border-color: #49333D;
-            color: #FFF8FA;
-          }
-
-          html.dark .speaking-page [class*="bg-white"] {
-            background-color: #211e27 !important;
-          }
-
-          html.dark .speaking-page [class*="bg-[#F6F8FE]"],
-          html.dark .speaking-page [class*="bg-[#F5F7FF]"],
-          html.dark .speaking-page [class*="bg-[#FFF7F9]"],
-          html.dark .speaking-page [class*="bg-[#F2F5FD]"],
-          html.dark .speaking-page [class*="bg-[#E9EDF7]"] {
-            background-color: #30232B !important;
-          }
-
-          html.dark .speaking-page [class*="text-[#10265F]"],
-          html.dark .speaking-page [class*="text-[#506995]"],
-          html.dark .speaking-page [class*="text-[#71809D]"],
-          html.dark .speaking-page [class*="text-[#8A9ABB]"],
-          html.dark .speaking-page [class*="text-[#9AA8C2]"] {
-            color: #C1B5C0 !important;
-          }
-
-          html.dark .speaking-page [class*="border-[#E7ECF6]"],
-          html.dark .speaking-page [class*="border-[#E2E8F5]"],
-          html.dark .speaking-page [class*="border-[#DCE4F3]"],
-          html.dark .speaking-page [class*="border-[#CCD7ED]"] {
-            border-color: #49333D !important;
-          }
-
-          html.dark .speaking-page input,
-          html.dark .speaking-page textarea,
-          html.dark .speaking-page select {
-            background: #30232B;
-            color: #FFF8FA;
-            border-color: #49333D;
-          }
-
-          html.dark .speaking-page input::placeholder,
-          html.dark .speaking-page textarea::placeholder {
-            color: #9B8D99;
-          }
-
-          html.dark .speaking-page [class*="hover:bg-[#FFF7F9]"]:hover,
-          html.dark .speaking-page [class*="hover:bg-[#F5F7FF]"]:hover {
-            background-color: #30232B !important;
-          }
-
-          html.dark [class*="fixed"][class*="z-"] > div,
-          html.dark [class*="fixed"][class*="z-"] > form {
-            background-color: #211e27 !important;
-            color: #FFF8FA;
-            border: 1px solid #49333D;
-          }
-
-          html.dark [class*="fixed"][class*="z-"] input,
-          html.dark [class*="fixed"][class*="z-"] textarea {
-            background: #30232B;
-            color: #FFF8FA;
-            border-color: #49333D;
-          }
-
-          html.dark [class*="fixed"][class*="z-"] [class*="text-[#71809D]"],
-          html.dark [class*="fixed"][class*="z-"] [class*="text-[#506995]"],
-          html.dark [class*="fixed"][class*="z-"] [class*="text-[#8A9ABB]"] {
-            color: #C1B5C0 !important;
-          }
-
-          html.dark [class*="fixed"][class*="z-"] [class*="border-[#E2E8F5]"],
-          html.dark [class*="fixed"][class*="z-"] [class*="border-[#E7ECF6]"] {
-            border-color: #49333D !important;
-          }
-
-          html.dark [class*="fixed"][class*="z-"] [class*="bg-[#F6F8FE]"],
-          html.dark [class*="fixed"][class*="z-"] [class*="bg-[#F5F7FF]"] {
-            background-color: #30232B !important;
-          }
-        `}</style>
-
-        {/* HERO BANNER */}
-        <section className="relative min-h-[190px] overflow-hidden rounded-2xl border border-[#E7ECF6] bg-[#F5F7FF] dark:border-[#49333D]">
+      <div className="speaking-page mx-auto max-w-[1600px] space-y-5 text-[#10265F] dark:text-[#FFF8FA]">
+        {/* HERO */}
+        <section className="relative min-h-[205px] overflow-hidden rounded-2xl border border-[#E7ECF6] bg-[#F5F7FF] dark:border-[#49333D]">
           <img
             src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1600&q=85"
-            alt="Students practising and preparing for an IELTS speaking test"
+            alt="Students preparing for an English speaking test"
             className="absolute inset-0 h-full w-full object-cover object-center"
           />
 
-          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/35 dark:from-[#171419] dark:via-[#171419]/90 dark:to-[#171419]/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/30 dark:from-[#171419] dark:via-[#171419]/90 dark:to-[#171419]/30" />
 
-          <div className="relative z-10 flex min-h-[190px] items-center p-5 sm:p-6">
-            <div className="max-w-[620px]">
-              <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF2454]">
-                <Sparkles size={15} /> IELTS speaking studio
-              </p>
+          <div className="relative z-10 flex min-h-[205px] items-center p-6 sm:p-8">
+            <div className="max-w-2xl">
+              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#FFF0F3] px-3 py-1 text-xs font-bold text-[#FF2454] dark:bg-[#3A202B]">
+                <Sparkles size={14} />
+                IELTS Speaking Module
+              </span>
 
-              <h1 className="mt-2 text-3xl font-black leading-tight tracking-tight sm:text-4xl">
-                Speak with <span className="text-[#FF2454]">confidence.</span>
+              <h1 className="text-2xl font-black sm:text-3xl">
+                Live Speaking Practice
               </h1>
 
-              <p className="mt-2 max-w-xl text-xs leading-5 text-[#506995] dark:text-[#C1B5C0] sm:text-sm">
-                Practise all three IELTS Speaking parts, prepare for mock tests
-                and build confidence one answer at a time.
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[#506995] dark:text-[#C1B5C0]">
+                Practise using published IELTS Speaking content, save your
+                answers and submit your voice recordings.
               </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivePart(0);
-                    setAnswer("");
-                    setShowPractice(true);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#FF2454] px-4 py-2.5 text-xs font-bold text-white shadow-lg transition hover:bg-[#E81745]"
-                >
-                  <Mic size={16} /> Start practising
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowSchedule(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F5] bg-white/95 px-4 py-2.5 text-xs font-bold text-[#10265F] transition hover:border-[#FF9BAF] dark:border-[#49333D] dark:bg-[#211e27]/95 dark:text-[#FFF8FA]"
-                >
-                  <CalendarDays size={16} /> Schedule session
-                </button>
-              </div>
             </div>
           </div>
         </section>
 
-        {/* NOTICE */}
-        {notice && (
-          <div className="flex items-start gap-2 rounded-xl border border-[#F6D4DC] bg-[#FFF5F7] p-3 text-xs text-[#A51D42] dark:border-[#693747] dark:bg-[#30232B] dark:text-[#FF9BAF]">
-            <AlertCircle size={16} className="mt-0.5 shrink-0" />
-            <p>{notice}</p>
-            <button
-              type="button"
-              onClick={() => setNotice("")}
-              className="ml-auto"
-              aria-label="Dismiss message"
-            >
-              <X size={15} />
-            </button>
-          </div>
+        {error && (
+          <Notice type="error" onClose={() => setError("")}>
+            {error}
+          </Notice>
         )}
 
-        {/* OVERVIEW CARDS */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: "Sessions completed",
-              value: 8 + submittedAnswers.length,
-              detail: "Keep building your confidence",
-              icon: CheckCircle2,
-              color: "#00A879",
-              bg: "bg-[#E5F9F1] dark:bg-[#1D3932]",
-            },
-            {
-              label: "Practice duration",
-              value: "2h 35m",
-              detail: "Total speaking practice",
-              icon: Clock,
-              color: "#1680E8",
-              bg: "bg-[#EAF4FF] dark:bg-[#1E3042]",
-            },
-            {
-              label: "Current target band",
-              value: "7.5",
-              detail: "Your personal goal",
-              icon: Target,
-              color: "#873BFA",
-              bg: "bg-[#F3EAFF] dark:bg-[#30243D]",
-            },
-            {
-              label: "Upcoming sessions",
-              value: allSessions.filter((s) => s.status === "Upcoming").length,
-              detail: "Sessions on your schedule",
-              icon: CalendarDays,
-              color: "#FF2454",
-              bg: "bg-[#FFF0F3] dark:bg-[#3A202B]",
-            },
-          ].map((item) => {
-            const Icon = item.icon;
+        {success && (
+          <Notice type="success" onClose={() => setSuccess("")}>
+            {success}
+          </Notice>
+        )}
 
-            return (
-              <Panel key={item.label} className="flex items-center gap-3">
-                <span
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${item.bg}`}
-                  style={{ color: item.color }}
-                >
-                  <Icon size={22} />
-                </span>
+        {/* TABS */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("practice")}
+            className={`rounded-xl px-5 py-3 text-sm font-bold transition ${
+              activeTab === "practice"
+                ? "bg-[#FF2454] text-white"
+                : "border border-[#E7ECF6] bg-white text-[#506995] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#C1B5C0]"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Mic size={16} />
+              Speaking Practice
+            </span>
+          </button>
 
-                <div>
-                  <p className="text-xs text-[#71809D] dark:text-[#C1B5C0]">
-                    {item.label}
-                  </p>
-                  <p className="mt-1 text-2xl font-black">{item.value}</p>
-                  <p className="mt-1 text-[10px] text-[#71809D] dark:text-[#C1B5C0]">
-                    {item.detail}
-                  </p>
-                </div>
-              </Panel>
-            );
-          })}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("history");
+              loadHistory();
+            }}
+            className={`rounded-xl px-5 py-3 text-sm font-bold transition ${
+              activeTab === "history"
+                ? "bg-[#FF2454] text-white"
+                : "border border-[#E7ECF6] bg-white text-[#506995] dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#C1B5C0]"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <History size={16} />
+              Practice History
+            </span>
+          </button>
         </div>
 
-        {/* SPEAKING PARTS */}
-        <Panel>
-          <SectionHeading
-            icon={MessageCircle}
-            title="Explore speaking practice"
-            description="Choose a part to practise its question style and timing."
-          />
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            {practiceQuestions.map((part, index) => (
-              <button
-                key={part.part}
-                type="button"
-                onClick={() => {
-                  setActivePart(index);
-                  setAnswer("");
-                  setShowPractice(true);
-                }}
-                className={`group rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${
-                  activePart === index
-                    ? "border-[#FF9BAF] bg-[#FFF7F9] dark:border-[#A94B62] dark:bg-[#30232B]"
-                    : "border-[#E7ECF6] bg-white hover:border-[#CCD7ED] dark:border-[#49333D] dark:bg-[#211e27] dark:hover:bg-[#30232B]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="rounded-lg bg-[#FFF0F3] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#FF2454] dark:bg-[#3A202B]">
-                    {part.part}
-                  </span>
-
-                  <ArrowRight
-                    size={17}
-                    className="text-[#8A9ABB] transition group-hover:translate-x-1 group-hover:text-[#FF2454]"
-                  />
-                </div>
-
-                <h3 className="mt-4 text-base font-extrabold">{part.title}</h3>
-
-                <p className="mt-2 text-xs leading-5 text-[#71809D] dark:text-[#C1B5C0]">
-                  {part.description}
-                </p>
-
-                <div className="mt-4 flex items-center gap-2 border-t border-[#E7ECF6] pt-3 text-[11px] font-semibold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]">
-                  <Clock size={14} /> {part.duration}
-                </div>
-              </button>
-            ))}
-          </div>
-        </Panel>
-
-        {/* UPCOMING SESSIONS */}
-        <Panel>
-          <SectionHeading
-            icon={CalendarDays}
-            title="Speaking sessions"
-            description="Review your upcoming sessions and past practice."
-            action={
-              <button
-                type="button"
-                onClick={() => setShowSchedule(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2E8F5] px-3 py-2 text-xs font-bold transition hover:border-[#FF9BAF] hover:bg-[#FFF7F9] dark:border-[#49333D] dark:hover:bg-[#30232B]"
-              >
-                <CalendarDays size={15} /> Schedule
-              </button>
-            }
-          />
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {["All sessions", "Upcoming", "Completed"].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                  activeTab === tab
-                    ? "border-[#FF2454] bg-[#FF2454] text-white"
-                    : "border-[#E2E8F5] text-[#506995] hover:border-[#FF9BAF] dark:border-[#49333D] dark:text-[#C1B5C0]"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {visibleSessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex flex-col gap-3 rounded-xl border border-[#E7ECF6] p-4 transition hover:border-[#CCD7ED] dark:border-[#49333D] dark:hover:border-[#74505F] sm:flex-row sm:items-center"
-              >
-                <span
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                    session.color === "green"
-                      ? "bg-[#E5F9F1] text-[#00A879] dark:bg-[#1D3932]"
-                      : session.color === "blue"
-                        ? "bg-[#EAF4FF] text-[#1680E8] dark:bg-[#1E3042]"
-                        : "bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]"
-                  }`}
-                >
-                  <Mic size={20} />
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-extrabold">{session.title}</h3>
-                  <p className="mt-1 text-xs text-[#71809D] dark:text-[#C1B5C0]">
-                    {session.part}
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#8A9ABB] dark:text-[#A99BA7]">
-                    <span className="flex items-center gap-1">
-                      <CalendarDays size={12} /> {session.date}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> {session.time}
-                    </span>
-                    <span>{session.duration}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 sm:ml-auto">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                      session.status === "Completed"
-                        ? "bg-[#E5F9F1] text-[#008A60]"
-                        : "bg-[#EAF4FF] text-[#2466C2]"
-                    }`}
-                  >
-                    {session.status}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSession(session)}
-                    className="rounded-xl border border-[#E2E8F5] px-3 py-2 text-xs font-bold transition hover:border-[#FF9BAF] hover:text-[#FF2454] dark:border-[#49333D]"
-                  >
-                    Details
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {visibleSessions.length === 0 && (
-              <p className="rounded-xl border border-dashed border-[#DCE4F3] p-6 text-center text-xs text-[#71809D] dark:border-[#49333D] dark:text-[#C1B5C0]">
-                No sessions in this category.
+        {loading ? (
+          <Card className="flex min-h-52 items-center justify-center">
+            <div className="text-center">
+              <Loader2 size={30} className="mx-auto animate-spin text-[#FF2454]" />
+              <p className="mt-3 text-sm text-[#71809D]">
+                Loading published IELTS content...
               </p>
-            )}
-          </div>
-        </Panel>
-
-        {/* STUDY TIPS */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Panel>
-            <SectionHeading
-              icon={Headphones}
-              title="Before your speaking test"
-              description="A quick checklist to help you prepare."
-            />
-
-            <div className="mt-4 space-y-3">
-              {[
-                "Test your microphone and audio setup.",
-                "Speak naturally instead of memorising answers.",
-                "Give reasons and examples to extend your answers.",
-                "Practise speaking clearly at a comfortable pace.",
-              ].map((tip) => (
-                <div key={tip} className="flex items-start gap-2.5">
-                  <CheckCircle2
-                    size={16}
-                    className="mt-0.5 shrink-0 text-[#00A879]"
-                  />
-                  <p className="text-xs leading-5 text-[#506995] dark:text-[#C1B5C0]">
-                    {tip}
-                  </p>
-                </div>
-              ))}
             </div>
-          </Panel>
+          </Card>
+        ) : activeTab === "history" ? (
+          <Card>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]">
+                <History size={20} />
+              </span>
+              <div>
+                <h2 className="font-black">Practice History</h2>
+                <p className="mt-1 text-xs text-[#71809D]">
+                  Your practice attempts retrieved from the backend.
+                </p>
+              </div>
+            </div>
 
-          <Panel className="bg-gradient-to-br from-white to-[#F3F7FF] dark:from-[#211e27] dark:to-[#30232B]">
-            <SectionHeading
-              icon={ShieldCheck}
-              title="Build a consistent routine"
-              description="Short, regular practice is more useful than last-minute cramming."
-            />
+            {historyLoading ? (
+              <div className="py-12 text-center">
+                <Loader2 size={26} className="mx-auto animate-spin text-[#FF2454]" />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="py-12 text-center">
+                <BookOpen size={34} className="mx-auto text-[#9AA8C2]" />
+                <p className="mt-3 font-bold">No practice history available</p>
+                <p className="mt-1 text-sm text-[#71809D]">
+                  Your practice attempts will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col justify-between gap-3 rounded-xl border border-[#E7ECF6] p-4 sm:flex-row sm:items-center dark:border-[#49333D]"
+                  >
+                    <div>
+                      <h3 className="font-bold">
+                        {item.testVersion?.test?.title || "IELTS Practice"}
+                      </h3>
+                      <p className="mt-1 text-xs text-[#71809D]">
+                        {item.testVersion?.test?.book?.title || "Published test"}
+                        {item.testVersion?.test?.testNumber
+                          ? ` · Test ${item.testVersion.test.testNumber}`
+                          : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-[#71809D]">
+                        Started: {formatDate(item.startedAt)}
+                      </p>
+                      {item.submittedAt && (
+                        <p className="mt-1 text-xs text-[#71809D]">
+                          Submitted: {formatDate(item.submittedAt)}
+                        </p>
+                      )}
+                    </div>
 
-            <div className="mt-4 rounded-xl border border-[#E2EAF8] bg-white p-4 dark:border-[#49333D] dark:bg-[#30232B]">
-              <p className="text-sm font-extrabold">Your suggested routine</p>
-
-              <div className="mt-3 space-y-3">
-                {[
-                  ["5 minutes", "Answer Part 1 questions"],
-                  ["10 minutes", "Practise one cue card"],
-                  ["5 minutes", "Review vocabulary and fluency"],
-                ].map(([time, label]) => (
-                  <div key={label} className="flex items-center gap-3">
-                    <span className="min-w-[85px] rounded-lg bg-[#FFF0F3] px-2 py-2 text-center text-[10px] font-extrabold text-[#FF2454] dark:bg-[#3A202B]">
-                      {time}
-                    </span>
-                    <span className="text-xs text-[#506995] dark:text-[#C1B5C0]">
-                      {label}
+                    <span className="w-fit rounded-full bg-[#F2F5FD] px-3 py-1 text-xs font-bold text-[#506995] dark:bg-[#30232B] dark:text-[#C1B5C0]">
+                      {item.status}
                     </span>
                   </div>
                 ))}
               </div>
-            </div>
-          </Panel>
-        </div>
+            )}
+          </Card>
+        ) : (
+          <>
+            {/* TEST SELECTION */}
+            <Card>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]">
+                  <BookOpen size={20} />
+                </span>
+                <div>
+                  <h2 className="font-black">Choose Speaking Test</h2>
+                  <p className="mt-1 text-xs text-[#71809D]">
+                    Select a published test and its Speaking module or part.
+                  </p>
+                </div>
+              </div>
 
-        {/* SAVED ANSWERS */}
-        {submittedAnswers.length > 0 && (
-          <Panel>
-            <SectionHeading
-              icon={BookOpen}
-              title="Your saved practice answers"
-              description="Answers submitted in this browser session."
-            />
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-xs font-bold text-[#506995] dark:text-[#C1B5C0]">
+                    Published IELTS test
+                  </label>
+                  <select
+                    value={selectedTestId}
+                    onChange={(event) => handleTestChange(event.target.value)}
+                    disabled={detailsLoading || starting}
+                    className="w-full rounded-xl border border-[#DCE4F3] bg-white px-4 py-3 text-sm outline-none focus:border-[#FF2454] dark:border-[#49333D] dark:bg-[#30232B]"
+                  >
+                    <option value="">Select a test</option>
+                    {tests.map((test) => (
+                      <option key={test.id} value={test.id}>
+                        {test.title}
+                        {test.testNumber ? ` · Test ${test.testNumber}` : ""}
+                        {test.book?.title ? ` · ${test.book.title}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="mt-4 space-y-3">
-              {submittedAnswers.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D]"
+                <div>
+                  <label className="mb-2 block text-xs font-bold text-[#506995] dark:text-[#C1B5C0]">
+                    Speaking module
+                  </label>
+                  <select
+                    value={selectedModuleId}
+                    onChange={(event) => {
+                      setSelectedModuleId(event.target.value);
+                      setSelectedPartId("");
+                    }}
+                    disabled={!speakingModules.length || detailsLoading}
+                    className="w-full rounded-xl border border-[#DCE4F3] bg-white px-4 py-3 text-sm outline-none focus:border-[#FF2454] dark:border-[#49333D] dark:bg-[#30232B]"
+                  >
+                    <option value="">Select a module</option>
+                    {speakingModules.map((module) => (
+                      <option key={module.id} value={module.id}>
+                        Speaking Module {module.position}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedModule && selectedParts.length > 0 && (
+                <div className="mt-4">
+                  <label className="mb-2 block text-xs font-bold text-[#506995] dark:text-[#C1B5C0]">
+                    Practice a specific part (optional)
+                  </label>
+                  <select
+                    value={selectedPartId}
+                    onChange={(event) => setSelectedPartId(event.target.value)}
+                    className="w-full rounded-xl border border-[#DCE4F3] bg-white px-4 py-3 text-sm outline-none focus:border-[#FF2454] dark:border-[#49333D] dark:bg-[#30232B]"
+                  >
+                    <option value="">Entire Speaking module</option>
+                    {selectedParts.map((part) => (
+                      <option key={part.id} value={part.id}>
+                        {part.title || `Part ${part.position}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {detailsLoading && (
+                <p className="mt-3 flex items-center gap-2 text-xs text-[#71809D]">
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading test details...
+                </p>
+              )}
+
+              {!tests.length && (
+                <div className="mt-5 rounded-xl bg-[#F6F8FE] p-4 text-sm text-[#71809D] dark:bg-[#30232B]">
+                  No published tests containing a Speaking module were returned
+                  by the backend.
+                </div>
+              )}
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-[#71809D]">
+                  {selectedTest
+                    ? `${selectedTest.title} · ${selectedTest.category || "IELTS"}`
+                    : "Select a test to begin."}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={startPractice}
+                  disabled={
+                    starting ||
+                    detailsLoading ||
+                    !selectedTest ||
+                    !selectedModuleId ||
+                    Boolean(attempt)
+                  }
+                  className="flex items-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#E91E4D] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-extrabold">{item.part}</p>
-                    <span className="text-[10px] text-[#8A9ABB] dark:text-[#A99BA7]">
-                      {item.date}
+                  {starting ? (
+                    <Loader2 size={17} className="animate-spin" />
+                  ) : (
+                    <Play size={17} />
+                  )}
+                  Start Practice
+                </button>
+              </div>
+            </Card>
+
+            {/* PRACTICE CONTENT */}
+            {attempt && (
+              <>
+                <Card>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]">
+                        <Target size={20} />
+                      </span>
+                      <div>
+                        <h2 className="font-black">Your Speaking Practice</h2>
+                        <p className="mt-1 text-xs text-[#71809D]">
+                          Attempt ID: {attempt.id}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resetPractice}
+                      disabled={isRecording || recordingBusy}
+                      className="flex items-center gap-2 rounded-xl border border-[#E7ECF6] px-3 py-2 text-xs font-bold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
+                    >
+                      <RotateCcw size={14} />
+                      Close practice
+                    </button>
+                  </div>
+
+                  {!questions.length ? (
+                    <div className="py-12 text-center">
+                      <AlertCircle size={34} className="mx-auto text-[#9AA8C2]" />
+                      <h3 className="mt-3 font-bold">
+                        No Speaking questions available
+                      </h3>
+                      <p className="mt-1 text-sm text-[#71809D]">
+                        The backend returned no questions for this selected scope.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {questions.map((question, index) => (
+                          <button
+                            key={question.id}
+                            type="button"
+                            onClick={() => setActiveQuestionIndex(index)}
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold ${
+                              index === activeQuestionIndex
+                                ? "bg-[#FF2454] text-white"
+                                : answers[question.id] !== undefined
+                                  ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300"
+                                  : "bg-[#F2F5FD] text-[#506995] dark:bg-[#30232B] dark:text-[#C1B5C0]"
+                            }`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-5 rounded-2xl bg-[#F6F8FE] p-5 dark:bg-[#30232B] sm:p-6">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="rounded-full bg-[#FFF0F3] px-3 py-1 text-xs font-bold text-[#FF2454] dark:bg-[#3A202B]">
+                            {currentQuestion?.testPart?.title ||
+                              `Question ${activeQuestionIndex + 1}`}
+                          </span>
+                          <span className="text-xs text-[#71809D]">
+                            Question {activeQuestionIndex + 1} of {questions.length}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-4 text-lg font-black leading-7">
+                          {getQuestionText(currentQuestion)}
+                        </h3>
+
+                        {currentQuestion?.testPart?.instructions && (
+                          <p className="mt-3 text-sm leading-6 text-[#71809D]">
+                            {currentQuestion.testPart.instructions}
+                          </p>
+                        )}
+
+                        {currentQuestion?.questionGroup?.instructions && (
+                          <p className="mt-3 text-sm leading-6 text-[#71809D]">
+                            {currentQuestion.questionGroup.instructions}
+                          </p>
+                        )}
+
+                        {currentQuestion?.questionGroup?.passage && (
+                          <div className="mt-4 whitespace-pre-wrap rounded-xl bg-white p-4 text-sm leading-6 dark:bg-[#211e27]">
+                            {currentQuestion.questionGroup.passage}
+                          </div>
+                        )}
+
+                        <label className="mt-5 block text-xs font-bold text-[#506995] dark:text-[#C1B5C0]">
+                          Your written answer
+                        </label>
+                        <textarea
+                          rows={5}
+                          value={answers[currentQuestion?.id] ?? ""}
+                          onChange={(event) => updateAnswer(event.target.value)}
+                          placeholder="Write your answer here..."
+                          className="mt-2 w-full resize-y rounded-xl border border-[#DCE4F3] bg-white p-4 text-sm leading-6 outline-none focus:border-[#FF2454] dark:border-[#49333D] dark:bg-[#211e27]"
+                        />
+
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={saveAnswer}
+                            disabled={saving}
+                            className="flex items-center gap-2 rounded-xl bg-[#FF2454] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                          >
+                            {saving ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={16} />
+                            )}
+                            Save answer
+                          </button>
+
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={activeQuestionIndex === 0}
+                              onClick={() =>
+                                setActiveQuestionIndex((index) => index - 1)
+                              }
+                              className="flex items-center gap-1 rounded-xl border border-[#DCE4F3] px-3 py-2.5 text-sm font-bold disabled:opacity-40 dark:border-[#49333D]"
+                            >
+                              <ChevronLeft size={16} />
+                              Previous
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={activeQuestionIndex >= questions.length - 1}
+                              onClick={() =>
+                                setActiveQuestionIndex((index) => index + 1)
+                              }
+                              className="flex items-center gap-1 rounded-xl border border-[#DCE4F3] px-3 py-2.5 text-sm font-bold disabled:opacity-40 dark:border-[#49333D]"
+                            >
+                              Next
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </Card>
+
+                {/* RECORDING */}
+                <Card>
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]">
+                      <Headphones size={21} />
+                    </span>
+                    <div>
+                      <h2 className="font-black">Speaking Audio Recording</h2>
+                      <p className="mt-1 text-xs leading-5 text-[#71809D]">
+                        Record your spoken answer and upload it for transcription.
+                        Maximum duration: 15 minutes.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="mt-5 flex items-start gap-3 rounded-xl bg-[#F6F8FE] p-4 dark:bg-[#30232B]">
+                    <input
+                      type="checkbox"
+                      checked={consent}
+                      disabled={isRecording || recordingBusy}
+                      onChange={(event) => setConsent(event.target.checked)}
+                      className="mt-1 accent-[#FF2454]"
+                    />
+                    <span>
+                      <span className="flex items-center gap-2 text-sm font-bold">
+                        <ShieldCheck size={16} />
+                        Recording consent
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-[#71809D]">
+                        I consent to recording and processing my audio for this
+                        Speaking submission.
+                      </span>
+                    </span>
+                  </label>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-3">
+                    {!isRecording ? (
+                      <button
+                        type="button"
+                        onClick={startRecording}
+                        disabled={!consent || recordingBusy || !currentQuestion}
+                        className="flex items-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Mic size={17} />
+                        Start recording
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white"
+                      >
+                        <Square size={16} />
+                        Stop recording
+                      </button>
+                    )}
+
+                    <span className="flex items-center gap-2 text-sm font-bold text-[#506995] dark:text-[#C1B5C0]">
+                      {isRecording && (
+                        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+                      )}
+                      <Clock size={16} />
+                      {formatTime(recordingSeconds)}
                     </span>
                   </div>
 
-                  <p className="mt-2 text-xs font-semibold">{item.question}</p>
-                  <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#71809D] dark:text-[#C1B5C0]">
-                    {item.answer}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        )}
+                  {recordingBlob && (
+                    <div className="mt-4 rounded-xl bg-[#F6F8FE] p-4 dark:bg-[#30232B]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-green-700 dark:text-green-300">
+                            Recording ready
+                          </p>
+                          <p className="mt-1 text-xs text-[#71809D]">
+                            {(recordingBlob.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
 
-        <p className="pb-2 text-center text-[11px] text-[#9AA8C2] dark:text-[#A99BA7]">
-          Equilx IELTS · Practise with purpose.
-        </p>
-      </div>
+                        <button
+                          type="button"
+                          onClick={uploadAndSubmitRecording}
+                          disabled={recordingBusy || !consent}
+                          className="flex items-center gap-2 rounded-xl bg-[#FF2454] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                        >
+                          {recordingBusy ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Upload size={16} />
+                          )}
+                          Upload and submit
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-      {/* PRACTICE MODAL */}
-      {showPractice && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#081633]/60 p-4 backdrop-blur-sm">
-          <div className="my-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:border dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA] sm:p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#FF2454]">
-                  IELTS Speaking Studio
-                </p>
+                  {transcriptionStatus && (
+                    <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+                      Transcription status: <strong>{transcriptionStatus}</strong>
+                    </div>
+                  )}
 
-                <h2 className="mt-2 text-xl font-black">
-                  {currentQuestion.title}
-                </h2>
-
-                <p className="mt-1 text-xs text-[#71809D] dark:text-[#C1B5C0]">
-                  {currentQuestion.part} · {currentQuestion.duration}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPractice(false);
-                  resetPreparation();
-                }}
-                aria-label="Close practice"
-                className="rounded-lg p-2 text-[#71809D] hover:bg-[#F5F7FF] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
-              >
-                <X size={19} />
-              </button>
-            </div>
-
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {practiceQuestions.map((part, index) => (
-                <button
-                  key={part.part}
-                  type="button"
-                  onClick={() => {
-                    setActivePart(index);
-                    setAnswer("");
-                    resetPreparation();
-                  }}
-                  className={`rounded-xl border px-2 py-3 text-xs font-bold transition ${
-                    activePart === index
-                      ? "border-[#FF2454] bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]"
-                      : "border-[#E2E8F5] text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
-                  }`}
-                >
-                  {part.part}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 rounded-xl bg-[#F6F8FE] p-4 dark:bg-[#30232B]">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#71809D] dark:text-[#C1B5C0]">
-                Your question
-              </p>
-
-              <p className="mt-2 text-sm font-semibold leading-6">
-                {currentQuestion.question}
-              </p>
-
-              <p className="mt-3 text-xs leading-5 text-[#71809D] dark:text-[#C1B5C0]">
-                <span className="font-bold text-[#FF2454]">Tip: </span>
-                {currentQuestion.tip}
-              </p>
-            </div>
-
-            {activePart === 1 && (
-              <div className="mt-4 rounded-xl border border-[#E7ECF6] p-4 dark:border-[#49333D]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-extrabold">Preparation timer</p>
-                    <p className="mt-1 text-[10px] text-[#71809D] dark:text-[#C1B5C0]">
-                      Use this minute to plan your cue-card response.
-                    </p>
-                  </div>
-
-                  <p className="text-2xl font-black tabular-nums text-[#FF2454]">
-                    {String(Math.floor(prepSeconds / 60)).padStart(2, "0")}:
-                    {String(prepSeconds % 60).padStart(2, "0")}
-                  </p>
-                </div>
-
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={prepRunning ? stopPreparation : startPreparation}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#FF2454] px-3 py-2 text-xs font-bold text-white"
-                  >
-                    {prepRunning ? <Pause size={14} /> : <Play size={14} />}
-                    {prepRunning ? "Pause timer" : "Start 1-minute timer"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={resetPreparation}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F5] px-3 py-2 text-xs font-bold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
-                  >
-                    <RotateCcw size={14} /> Reset
-                  </button>
-                </div>
-              </div>
+                  {submissionId && (
+                    <button
+                      type="button"
+                      onClick={handleWithdrawConsent}
+                      disabled={recordingBusy || isRecording}
+                      className="mt-4 text-xs font-bold text-red-600 underline disabled:opacity-40"
+                    >
+                      Withdraw recording consent
+                    </button>
+                  )}
+                </Card>
+              </>
             )}
 
-            <form onSubmit={submitPractice} className="mt-4">
-              <label htmlFor="speaking-answer" className="text-xs font-extrabold">
-                Practise your answer
-              </label>
+            {!attempt && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <BookOpen className="text-[#FF2454]" size={24} />
+                  <h3 className="mt-3 font-black">Published IELTS Content</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#71809D]">
+                    Select real published Speaking tests from the backend.
+                  </p>
+                </Card>
 
-              <textarea
-                id="speaking-answer"
-                value={answer}
-                onChange={(event) => setAnswer(event.target.value)}
-                rows={6}
-                required
-                placeholder="Type a practice transcript or outline your answer here..."
-                className="mt-2 w-full resize-y rounded-xl border border-[#E2E8F5] px-4 py-3 text-sm leading-6 outline-none transition placeholder:text-[#9AA8C2] focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#30232B] dark:text-[#FFF8FA]"
-              />
+                <Card>
+                  <Target className="text-[#FF2454]" size={24} />
+                  <h3 className="mt-3 font-black">Real Questions</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#71809D]">
+                    Questions are loaded from your active practice attempt.
+                  </p>
+                </Card>
 
-              <p className="mt-2 text-right text-[10px] text-[#8A9ABB] dark:text-[#A99BA7]">
-                {answer.trim() ? answer.trim().split(/\s+/).length : 0} words
+                <Card>
+                  <Mic className="text-[#FF2454]" size={24} />
+                  <h3 className="mt-3 font-black">Audio Submission</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#71809D]">
+                    Record and submit your audio through the Speaking API.
+                  </p>
+                </Card>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* API CAPABILITY NOTE */}
+        <Card>
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 shrink-0 text-[#FF2454]" size={19} />
+            <div>
+              <h3 className="font-bold">Speaking feedback and trainer sessions</h3>
+              <p className="mt-1 text-xs leading-5 text-[#71809D]">
+                The inspected backend provides practice attempts, question
+                retrieval, answer saving, audio submission and transcription
+                queueing. It does not currently expose a trainer-session booking
+                endpoint or a Speaking submission result/status retrieval endpoint.
+                Therefore this page does not show invented session schedules,
+                trainer details, band scores or AI feedback.
               </p>
-
-              <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPractice(false);
-                    resetPreparation();
-                  }}
-                  className="flex-1 rounded-xl border border-[#E2E8F5] px-4 py-3 text-sm font-bold text-[#506995] hover:bg-[#F5F7FF] dark:border-[#49333D] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#E81745]"
-                >
-                  <Send size={16} /> Save practice answer
-                </button>
-              </div>
-            </form>
-
-            <p className="mt-4 text-[10px] leading-5 text-[#8A9ABB] dark:text-[#A99BA7]">
-              This practice form saves text only. Live microphone, video calls,
-              speech recognition and AI scoring require separate integrations.
-            </p>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* SESSION DETAILS MODAL */}
-      {selectedSession && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#081633]/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:border dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA] sm:p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#FF2454]">
-                  Session details
-                </p>
-                <h2 className="mt-2 text-lg font-black">
-                  {selectedSession.title}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedSession(null)}
-                className="rounded-lg p-2 text-[#71809D] hover:bg-[#F5F7FF] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
-                aria-label="Close session details"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3 rounded-xl bg-[#F6F8FE] p-4 dark:bg-[#30232B]">
-              {[
-                ["Session type", selectedSession.type],
-                ["Practice format", selectedSession.part],
-                ["Date", selectedSession.date],
-                ["Time", selectedSession.time],
-                ["Duration", selectedSession.duration],
-                ["Trainer", selectedSession.trainer],
-                ["Status", selectedSession.status],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="flex items-start justify-between gap-3 text-xs"
-                >
-                  <span className="text-[#71809D] dark:text-[#C1B5C0]">
-                    {label}
-                  </span>
-                  <span className="text-right font-bold">{value}</span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedSession(null);
-                setActivePart(0);
-                setShowPractice(true);
-              }}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#E81745]"
-            >
-              <Mic size={16} /> Start practice instead
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* SCHEDULE MODAL */}
-      {showSchedule && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#081633]/60 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={handleSchedule}
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:border dark:border-[#49333D] dark:bg-[#211e27] dark:text-[#FFF8FA] sm:p-6"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#FF2454]">
-                  Session planner
-                </p>
-                <h2 className="mt-2 text-xl font-black">
-                  Schedule speaking practice
-                </h2>
-                <p className="mt-1 text-xs text-[#71809D] dark:text-[#C1B5C0]">
-                  Add a session to your local demo schedule.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowSchedule(false)}
-                className="rounded-lg p-2 text-[#71809D] hover:bg-[#F5F7FF] dark:text-[#C1B5C0] dark:hover:bg-[#30232B]"
-                aria-label="Close schedule form"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <label className="mt-5 block text-xs font-bold">Session type</label>
-
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {["Mock test", "Practice"].map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setScheduleType(type)}
-                  className={`rounded-xl border px-3 py-3 text-xs font-bold transition ${
-                    scheduleType === type
-                      ? "border-[#FF2454] bg-[#FFF0F3] text-[#FF2454] dark:bg-[#3A202B]"
-                      : "border-[#E2E8F5] text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-
-            <label htmlFor="session-date" className="mt-4 block text-xs font-bold">
-              Preferred date
-            </label>
-
-            <input
-              id="session-date"
-              type="date"
-              min={new Date().toISOString().split("T")[0]}
-              value={scheduleDate}
-              onChange={(event) => setScheduleDate(event.target.value)}
-              required
-              className="mt-2 w-full rounded-xl border border-[#E2E8F5] px-3 py-3 text-sm outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#30232B] dark:text-[#FFF8FA]"
-            />
-
-            <label htmlFor="session-time" className="mt-4 block text-xs font-bold">
-              Preferred time
-            </label>
-
-            <input
-              id="session-time"
-              type="time"
-              value={scheduleTime}
-              onChange={(event) => setScheduleTime(event.target.value)}
-              required
-              className="mt-2 w-full rounded-xl border border-[#E2E8F5] px-3 py-3 text-sm outline-none focus:border-[#FF8199] dark:border-[#49333D] dark:bg-[#30232B] dark:text-[#FFF8FA]"
-            />
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowSchedule(false)}
-                className="flex-1 rounded-xl border border-[#E2E8F5] px-4 py-3 text-sm font-bold text-[#506995] dark:border-[#49333D] dark:text-[#C1B5C0]"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-bold text-white hover:bg-[#E81745]"
-              >
-                <CalendarDays size={16} /> Add session
-              </button>
-            </div>
-
-            <p className="mt-3 text-[10px] leading-5 text-[#8A9ABB] dark:text-[#A99BA7]">
-              This demo creates a local session entry only. Actual trainer booking
-              and calendar synchronisation require backend integration.
-            </p>
-          </form>
-        </div>
-      )}
+        </Card>
+      </div>
     </StudentLayout>
   );
 }

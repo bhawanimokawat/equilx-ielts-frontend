@@ -1,16 +1,28 @@
 
 import React, { useState, useRef, useEffect } from "react";
-import { Mail, ShieldCheck, CheckCircle2, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import {
+  Mail,
+  ShieldCheck,
+  CheckCircle2,
+  ArrowLeft,
+} from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 import AuthNavbar from "../../components/common/AuthNavbar";
+import authService from "../../services/authService";
 
 export default function EmailVerificationPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(45);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
   const inputRefs = useRef([]);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const email = location.state?.email || "";
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -27,6 +39,7 @@ export default function EmailVerificationPage() {
 
     const digit = value.slice(-1);
     const updatedOtp = [...otp];
+
     updatedOtp[index] = digit;
 
     setOtp(updatedOtp);
@@ -54,6 +67,8 @@ export default function EmailVerificationPage() {
 
     setOtp(updatedOtp);
     setError("");
+    setMessage("");
+
     inputRefs.current[Math.min(pastedValue.length, 5)]?.focus();
   };
 
@@ -71,33 +86,81 @@ export default function EmailVerificationPage() {
     }
   };
 
-  const handleVerify = (e) => {
+  // Verify Email API
+  const handleVerify = async (e) => {
     e.preventDefault();
 
     const verificationCode = otp.join("");
+
+    if (!email) {
+      setError("Email address not found. Please register again.");
+      return;
+    }
 
     if (verificationCode.length !== 6) {
       setError("Please enter the complete 6-digit verification code.");
       return;
     }
 
+    setLoading(true);
     setError("");
-    setMessage("OTP entered successfully. Connect your verification API to complete verification.");
+    setMessage("");
 
-    console.log("Verification OTP:", verificationCode);
+    try {
+      const response = await authService.verifyEmail(
+        email,
+        verificationCode
+      );
+
+      if (response.success) {
+        setMessage("Email verified successfully!");
+
+        setTimeout(() => {
+          navigate("/login", {
+            state: {
+              message: "Email verified successfully. Please login.",
+            },
+          });
+        }, 1000);
+      } else {
+        setError(response.message || "Email verification failed.");
+      }
+    } catch (err) {
+      setError(err.message || "Invalid or expired verification code.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResend = () => {
-    if (timeLeft > 0) return;
+  // Resend OTP API
+  const handleResend = async () => {
+    if (timeLeft > 0 || resendLoading) return;
 
-    setOtp(["", "", "", "", "", ""]);
-    setTimeLeft(45);
-    setMessage("");
+    if (!email) {
+      setError("Email address not found. Please register again.");
+      return;
+    }
+
+    setResendLoading(true);
     setError("");
+    setMessage("");
 
-    inputRefs.current[0]?.focus();
+    try {
+      const response = await authService.resendOtp(email);
 
-    // Connect resend OTP API here.
+      if (response.success) {
+        setOtp(["", "", "", "", "", ""]);
+        setTimeLeft(45);
+        setMessage("A new verification code has been sent to your email.");
+        inputRefs.current[0]?.focus();
+      } else {
+        setError(response.message || "Unable to resend verification code.");
+      }
+    } catch (err) {
+      setError(err.message || "Unable to resend verification code.");
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   const formatTime = (seconds) => {
@@ -190,8 +253,12 @@ export default function EmailVerificationPage() {
               </h2>
 
               <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
-                We have sent a 6-digit verification code to your registered email address.
+                We have sent a 6-digit verification code to:
               </p>
+
+              <strong className="block text-rose-500 mt-2 break-all">
+                {email || "Email address unavailable"}
+              </strong>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-6">
@@ -234,9 +301,10 @@ export default function EmailVerificationPage() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold shadow-lg shadow-rose-500/20 transition-all duration-300 hover:-translate-y-0.5"
+                disabled={loading}
+                className="w-full py-3.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold shadow-lg shadow-rose-500/20 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Verify code →
+                {loading ? "Verifying..." : "Verify code →"}
               </button>
 
               <div className="text-center">
@@ -244,11 +312,11 @@ export default function EmailVerificationPage() {
                   Didn't receive the code?{" "}
                   <button
                     type="button"
-                    disabled={timeLeft > 0}
+                    disabled={timeLeft > 0 || resendLoading}
                     onClick={handleResend}
                     className="font-semibold text-rose-500 hover:text-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    Resend code
+                    {resendLoading ? "Sending..." : "Resend code"}
                   </button>
                 </p>
 

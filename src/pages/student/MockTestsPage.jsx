@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -21,12 +21,16 @@ import {
   PlayCircle,
   Target,
   Sparkles,
+  LoaderCircle,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 import StudentLayout from "./StudentLayout";
+import mockService from "../../services/mockService";
 
 // =====================================================
-// SKILL TABS
+// CONSTANTS
 // =====================================================
 
 const skillTabs = [
@@ -37,152 +41,84 @@ const skillTabs = [
   { name: "Speaking", icon: Mic },
 ];
 
-// =====================================================
-// MOCK TEST DATA
-// =====================================================
-
-const mockTests = [
-  {
-    id: 1,
-    title: "Cambridge IELTS 18 - Test 1",
-    subtitle: "Official-style IELTS practice with all four sections.",
-    category: "Cambridge IELTS",
-    type: "Free",
-    duration: "2 hours 45 mins",
-    sections: 4,
-    skill: "All Tests",
-    popular: true,
-    image:
-      "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 2,
-    title: "Cambridge IELTS 17 - Test 2",
-    subtitle: "Practise exam-style questions and improve your performance.",
-    category: "Cambridge IELTS",
-    type: "Pro",
-    duration: "2 hours 45 mins",
-    sections: 4,
-    skill: "All Tests",
-    image:
-      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 3,
-    title: "Cambridge IELTS 16 - Test 4",
-    subtitle: "Build confidence with a complete timed mock test.",
-    category: "Cambridge IELTS",
-    type: "Pro",
-    duration: "2 hours 45 mins",
-    sections: 4,
-    skill: "All Tests",
-    image:
-      "https://images.unsplash.com/photo-1453738773917-9c3eff1db985?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 4,
-    title: "General IELTS - Full Mock Test",
-    subtitle: "A complete practice test covering all four IELTS skills.",
-    category: "General IELTS",
-    type: "Free",
-    duration: "2 hours 45 mins",
-    sections: 4,
-    skill: "All Tests",
-    image:
-      "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 5,
-    title: "Academic IELTS - Mixed Test",
-    subtitle: "Practise academic questions across multiple IELTS sections.",
-    category: "Academic IELTS",
-    type: "Pro",
-    duration: "2 hours 45 mins",
-    sections: 4,
-    skill: "All Tests",
-    image:
-      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 6,
-    title: "Listening Practice - Full Test",
-    subtitle: "Train your listening accuracy with four question sections.",
-    category: "Skill Practice",
-    type: "Free",
-    duration: "30 mins",
-    sections: 4,
-    skill: "Listening",
-    image:
-      "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 7,
-    title: "Academic Reading - Full Test",
-    subtitle: "Practise reading passages and question-solving techniques.",
-    category: "Skill Practice",
-    type: "Pro",
-    duration: "60 mins",
-    sections: 3,
-    skill: "Reading",
-    image:
-      "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 8,
-    title: "Writing Task 1 & Task 2",
-    subtitle: "Practise report writing and essay responses under time limits.",
-    category: "Skill Practice",
-    type: "Free",
-    duration: "60 mins",
-    sections: 2,
-    skill: "Writing",
-    image:
-      "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=700&q=85",
-  },
-  {
-    id: 9,
-    title: "Speaking Interview Practice",
-    subtitle: "Practise Part 1, cue cards and discussion questions.",
-    category: "Skill Practice",
-    type: "Pro",
-    duration: "15 mins",
-    sections: 3,
-    skill: "Speaking",
-    image:
-      "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=700&q=85",
-  },
+// Original card images - preserved
+const cardImages = [
+  "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1453738773917-9c3eff1db985?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=700&q=85",
+  "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=700&q=85",
 ];
 
-// =====================================================
-// RECENT TESTS
-// =====================================================
-
-const recentTests = [
-  {
-    title: "Cambridge IELTS 18 - Test 1",
-    date: "20 Oct 2026",
-    score: "6.5",
-  },
-  {
-    title: "Cambridge IELTS 17 - Test 3",
-    date: "15 Oct 2026",
-    score: "6.0",
-  },
-  {
-    title: "General IELTS - Test 2",
-    date: "10 Oct 2026",
-    score: "7.0",
-  },
-];
+// Original permanent hero image - unchanged
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1800&q=90";
 
 const categories = [
   "All",
   "Cambridge IELTS",
+  "Academic IELTS",
+  "General Training",
   "Recent Tests",
-  "Topic-wise",
-  "Free Tests",
-  "Premium Tests",
 ];
+
+const getData = (response) => response?.data ?? response ?? {};
+
+const getTestTitle = (test) => {
+  if (!test) return "IELTS Mock Test";
+
+  if (test.book?.title && test.testNumber) {
+    return `${test.book.title} - Test ${test.testNumber}`;
+  }
+
+  return test.title || test.book?.title || "IELTS Mock Test";
+};
+
+const getDuration = (modules = []) => {
+  const seconds = modules.reduce(
+    (total, module) => total + (module.durationSeconds || 0),
+    0
+  );
+
+  if (!seconds) return "Duration not specified";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+
+  if (hours && minutes) return `${hours} hours ${minutes} mins`;
+  if (hours) return `${hours} hours`;
+  return `${minutes} mins`;
+};
+
+const formatDate = (date) => {
+  if (!date) return "Date unavailable";
+
+  const parsed = new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) return "Date unavailable";
+
+  return parsed.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getStatus = (status) => {
+  const statuses = {
+    IN_PROGRESS: "In progress",
+    SUBMITTED: "Submitted",
+    EVALUATED: "Completed",
+    COMPLETED: "Completed",
+    EXPIRED: "Expired",
+  };
+
+  return statuses[status] || status || "Unknown";
+};
 
 // =====================================================
 // COMMON PANEL
@@ -205,88 +141,303 @@ function Panel({ children, className = "" }) {
 export default function MockTestsPage() {
   const navigate = useNavigate();
 
+  // API states
+  const [tests, setTests] = useState([]);
+  const [recentTests, setRecentTests] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+
+  // Filter states
   const [activeSkill, setActiveSkill] = useState("All Tests");
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("Latest");
-  const [selectedTest, setSelectedTest] = useState(null);
+  const [page, setPage] = useState(1);
   const [showAllRecent, setShowAllRecent] = useState(false);
+
+  // Modal states
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [testDetails, setTestDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+  const [startedAttempt, setStartedAttempt] = useState(null);
+
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // =====================================================
-  // FILTER TESTS
+  // API: FETCH MOCK TESTS
+  // =====================================================
+
+  const fetchTests = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await mockService.getTests(page, 10);
+      const data = getData(response);
+
+      setTests(Array.isArray(data.items) ? data.items : []);
+
+      setPagination(
+        data.pagination || {
+          page,
+          limit: 10,
+          total: 0,
+          totalPages: 0,
+        }
+      );
+    } catch (err) {
+      setError(err.message || "Unable to load mock tests.");
+      setTests([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  // =====================================================
+  // API: FETCH MOCK HISTORY
+  // =====================================================
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError("");
+
+      const response = await mockService.getHistory(1, 50);
+      const data = getData(response);
+
+      setRecentTests(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setHistoryError(err.message || "Unable to load mock history.");
+      setRecentTests([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTests();
+  }, [fetchTests]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // =====================================================
+  // MAP BACKEND DATA TO EXISTING CARD DESIGN
+  // =====================================================
+
+  const mappedTests = useMemo(() => {
+    return tests.map((test, index) => {
+      const categoryName =
+        test.category === "ACADEMIC"
+          ? "Academic IELTS"
+          : test.category === "GENERAL_TRAINING"
+            ? "General Training"
+            : "IELTS Mock Test";
+
+      return {
+        ...test,
+        title: getTestTitle(test),
+        subtitle: `Complete IELTS ${categoryName} mock test with all four sections.`,
+        category: categoryName,
+        type: "Published",
+        duration: "Full-length mock test",
+        sections: 4,
+        skill: "All Tests",
+        image: cardImages[index % cardImages.length],
+        popular: false,
+      };
+    });
+  }, [tests]);
+
+  // =====================================================
+  // FILTER AND SORT
   // =====================================================
 
   const filteredTests = useMemo(() => {
-    let result = mockTests.filter((test) => {
-      const matchesSkill =
-        activeSkill === "All Tests" ||
-        test.skill === activeSkill ||
-        (activeSkill !== "All Tests" && test.skill === "All Tests");
+    let result = [...mappedTests];
 
-      const matchesSearch =
-        test.title.toLowerCase().includes(search.toLowerCase()) ||
-        test.subtitle.toLowerCase().includes(search.toLowerCase()) ||
-        test.category.toLowerCase().includes(search.toLowerCase());
+    if (search.trim()) {
+      const term = search.toLowerCase();
 
-      const matchesCategory =
-        activeCategory === "All" ||
-        (activeCategory === "Cambridge IELTS" &&
-          test.category === "Cambridge IELTS") ||
-        (activeCategory === "Recent Tests" &&
-          [1, 2, 4].includes(test.id)) ||
-        (activeCategory === "Topic-wise" &&
-          test.category === "Skill Practice") ||
-        (activeCategory === "Free Tests" && test.type === "Free") ||
-        (activeCategory === "Premium Tests" && test.type === "Pro");
-
-      return matchesSkill && matchesSearch && matchesCategory;
-    });
-
-    if (sortBy === "A-Z") {
-      result = [...result].sort((a, b) =>
-        a.title.localeCompare(b.title)
+      result = result.filter((test) =>
+        [
+          test.title,
+          test.subtitle,
+          test.category,
+          test.book?.title,
+        ]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(term))
       );
     }
 
+    if (activeCategory === "Cambridge IELTS") {
+      result = result.filter((test) => Boolean(test.book?.title));
+    }
+
+    if (activeCategory === "Academic IELTS") {
+      result = result.filter(
+        (test) => test.category === "Academic IELTS"
+      );
+    }
+
+    if (activeCategory === "General Training") {
+      result = result.filter(
+        (test) => test.category === "General Training"
+      );
+    }
+
+    if (activeCategory === "Recent Tests") {
+      const recentIds = new Set(
+        recentTests.map((item) => item.testVersion?.test?.id)
+      );
+
+      result = result.filter((test) => recentIds.has(test.id));
+    }
+
+    // The mock list endpoint returns full tests, not separate skill tests.
+    // All four skills are included in each full mock test.
+    if (activeSkill !== "All Tests") {
+      result = [];
+    }
+
+    if (sortBy === "A-Z") {
+      result.sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    if (sortBy === "Latest") {
+      result.sort((a, b) => {
+        const dateA = new Date(
+          a.publishedVersion?.publishedAt || 0
+        ).getTime();
+
+        const dateB = new Date(
+          b.publishedVersion?.publishedAt || 0
+        ).getTime();
+
+        return dateB - dateA;
+      });
+    }
+
     return result;
-  }, [activeSkill, activeCategory, search, sortBy]);
+  }, [
+    mappedTests,
+    search,
+    activeCategory,
+    activeSkill,
+    sortBy,
+    recentTests,
+  ]);
 
   // =====================================================
-  // START TEST
+  // API: OPEN TEST DETAILS
   // =====================================================
 
-  const startTest = (test) => {
-    if (test.type === "Pro") {
-      setSelectedTest(null);
-      setShowUpgradeModal(true);
+  const openTestDetails = async (test) => {
+    setSelectedTest(test);
+    setTestDetails(null);
+    setDetailsError("");
+    setStartError("");
+    setStartedAttempt(null);
+
+    try {
+      setDetailsLoading(true);
+
+      const response = await mockService.getTestDetails(test.id);
+      const data = getData(response);
+
+      setTestDetails(data);
+    } catch (err) {
+      setDetailsError(err.message || "Unable to load test details.");
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  // =====================================================
+  // API: START MOCK TEST
+  // =====================================================
+
+  const continueTest = async () => {
+    if (!testDetails) return;
+
+    const versionId = testDetails.publishedVersion?.id;
+
+    if (!versionId) {
+      setStartError("Published test version is not available.");
       return;
     }
 
-    setSelectedTest(test);
+    try {
+      setStarting(true);
+      setStartError("");
+
+      const response = await mockService.startTest(versionId);
+      const data = getData(response);
+
+      if (!data.id) {
+        throw new Error("Attempt ID was not returned by the server.");
+      }
+
+      setStartedAttempt(data);
+
+      // Refresh history after creating an attempt
+      fetchHistory();
+    } catch (err) {
+      setStartError(err.message || "Unable to start mock test.");
+    } finally {
+      setStarting(false);
+    }
   };
 
-  // =====================================================
-  // CONTINUE TEST
-  // =====================================================
-
-  const continueTest = () => {
-    if (!selectedTest) return;
-
-    if (selectedTest.skill === "Writing") {
-      navigate("/ai-feedback");
-    } else if (selectedTest.skill === "Speaking") {
-      navigate("/live-speaking");
-    } else {
-      navigate("/practice");
-    }
+  const closeTestModal = () => {
+    if (starting) return;
 
     setSelectedTest(null);
+    setTestDetails(null);
+    setDetailsError("");
+    setStartError("");
+    setStartedAttempt(null);
   };
 
+  // =====================================================
+  // PROGRESS FROM ACTUAL HISTORY
+  // =====================================================
+
+  const completedTests = recentTests.filter((test) =>
+    ["SUBMITTED", "EVALUATED", "COMPLETED"].includes(test.status)
+  );
+
+  const inProgressTests = recentTests.filter(
+    (test) => test.status === "IN_PROGRESS"
+  );
+
+  const latestScore = recentTests.find(
+    (test) => test.mockScore?.overallBand != null
+  );
+
+  const latestBand = latestScore?.mockScore?.overallBand;
+
+  const completedCount = completedTests.length;
+  const inProgressCount = inProgressTests.length;
+  const totalAttempts = recentTests.length;
+
   const visibleRecentTests = showAllRecent
-    ? [...recentTests, ...recentTests]
-    : recentTests;
+    ? recentTests
+    : recentTests.slice(0, 3);
 
   // =====================================================
   // RENDER
@@ -296,7 +447,7 @@ export default function MockTestsPage() {
     <StudentLayout>
       <div className="mock-tests-page mx-auto w-full max-w-[1800px] space-y-5 text-[#252333] dark:text-white">
 
-        {/* HERO SECTION */}
+        {/* HERO SECTION - ORIGINAL IMAGE PRESERVED */}
 
         <section className="relative grid min-h-[220px] overflow-hidden rounded-2xl border border-[#F1DDE2] bg-gradient-to-r from-[#FFF5F7] via-white to-[#FFF0F3] dark:border-[#49333D] dark:from-[#30232D] dark:via-[#211e27] dark:to-[#30232D] lg:grid-cols-[minmax(0,1fr)_310px]">
 
@@ -319,7 +470,6 @@ export default function MockTestsPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF0F3] text-[#FF456C] dark:bg-[#38202B]">
                   <FileText size={18} />
                 </span>
-
                 <div>
                   <p className="text-[11px] font-extrabold">Exam format</p>
                   <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
@@ -332,7 +482,6 @@ export default function MockTestsPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4ECFF] text-[#873BFA] dark:bg-[#30243E]">
                   <Clock size={18} />
                 </span>
-
                 <div>
                   <p className="text-[11px] font-extrabold">Timed tests</p>
                   <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
@@ -345,7 +494,6 @@ export default function MockTestsPage() {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E5F9F1] text-[#00A879] dark:bg-[#203B33]">
                   <BarChart3 size={18} />
                 </span>
-
                 <div>
                   <p className="text-[11px] font-extrabold">Analysis</p>
                   <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
@@ -358,7 +506,7 @@ export default function MockTestsPage() {
 
           <div className="relative hidden min-h-[220px] overflow-hidden lg:block">
             <img
-              src="https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1800&q=90"
+              src={HERO_IMAGE}
               alt="Books and study materials in a library"
               loading="eager"
               className="absolute inset-0 h-full w-full object-cover"
@@ -454,7 +602,6 @@ export default function MockTestsPage() {
 
                 <label className="flex items-center gap-2 text-xs text-[#716A7B] dark:text-[#C6C0CD]">
                   Sort by:
-
                   <span className="relative">
                     <select
                       value={sortBy}
@@ -464,7 +611,6 @@ export default function MockTestsPage() {
                       <option value="Latest">Latest</option>
                       <option value="A-Z">Name A-Z</option>
                     </select>
-
                     <ChevronDown
                       size={14}
                       className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
@@ -477,134 +623,177 @@ export default function MockTestsPage() {
             {/* TEST CARDS */}
 
             <div className="space-y-3">
-              {filteredTests.map((test) => (
-                <article
-                  key={test.id}
-                  className="group grid gap-4 rounded-2xl border border-[#E8EAF0] bg-white p-3 text-[#252333] shadow-[0_3px_14px_rgba(20,20,40,0.025)] transition hover:border-[#FFB4C2] hover:shadow-md dark:border-[#393440] dark:bg-[#211e27] dark:text-white dark:hover:border-[#75404F] sm:grid-cols-[155px_minmax(0,1fr)] sm:p-4 lg:grid-cols-[165px_minmax(0,1fr)_150px]"
-                >
-                  <div className="relative h-36 overflow-hidden rounded-xl bg-[#F2F2F6] dark:bg-[#292530] sm:h-full sm:min-h-[135px]">
-                    <img
-                      src={test.image}
-                      alt={test.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
+              {loading ? (
+                <Panel className="flex flex-col items-center py-14">
+                  <LoaderCircle
+                    size={30}
+                    className="animate-spin text-[#FF456C]"
+                  />
+                  <p className="mt-3 text-sm font-bold">
+                    Loading mock tests...
+                  </p>
+                </Panel>
+              ) : error ? (
+                <Panel className="py-10 text-center">
+                  <AlertCircle
+                    size={28}
+                    className="mx-auto text-red-500"
+                  />
+                  <h3 className="mt-3 text-base font-extrabold">
+                    Unable to load mock tests
+                  </h3>
+                  <p className="mt-2 text-sm text-[#777184]">
+                    {error}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={fetchTests}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#FF456C] px-5 py-2.5 text-xs font-bold text-white"
+                  >
+                    <RefreshCw size={14} />
+                    Try again
+                  </button>
+                </Panel>
+              ) : (
+                <>
+                  {filteredTests.map((test) => (
+                    <article
+                      key={test.id}
+                      className="group grid gap-4 rounded-2xl border border-[#E8EAF0] bg-white p-3 text-[#252333] shadow-[0_3px_14px_rgba(20,20,40,0.025)] transition hover:border-[#FFB4C2] hover:shadow-md dark:border-[#393440] dark:bg-[#211e27] dark:text-white dark:hover:border-[#75404F] sm:grid-cols-[155px_minmax(0,1fr)] sm:p-4 lg:grid-cols-[165px_minmax(0,1fr)_150px]"
+                    >
+                      <div className="relative h-36 overflow-hidden rounded-xl bg-[#F2F2F6] dark:bg-[#292530] sm:h-full sm:min-h-[135px]">
+                        <img
+                          src={test.image}
+                          alt={test.title}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-                        {test.category}
-                      </p>
+                        <div className="absolute bottom-3 left-3 right-3">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                            {test.category}
+                          </p>
+                          <p className="mt-1 text-sm font-black text-white">
+                            IELTS Test
+                          </p>
+                        </div>
+                      </div>
 
-                      <p className="mt-1 text-sm font-black text-white">
-                        {test.skill === "All Tests" ? "IELTS Test" : test.skill}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex min-w-0 flex-col justify-center">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-extrabold leading-5">
+                            {test.title}
+                          </h3>
 
-                  <div className="flex min-w-0 flex-col justify-center">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-extrabold leading-5">
-                        {test.title}
+                          <span className="rounded-full bg-[#E5F9F1] px-2 py-1 text-[10px] font-extrabold text-[#009A69] dark:bg-[#203B33]">
+                            Published
+                          </span>
+                        </div>
+
+                        <p className="mt-2 text-xs leading-5 text-[#777184] dark:text-[#AAA5B4]">
+                          {test.subtitle}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#716A7B] dark:text-[#C6C0CD]">
+                          <span className="flex items-center gap-1.5">
+                            <FileText size={14} />
+                            4 Sections
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <Clock size={14} />
+                            Full-length test
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <BarChart3 size={14} />
+                            Exam-style format
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-row items-center justify-between gap-3 border-t border-[#ECECF1] pt-3 dark:border-[#393440] sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-stretch lg:justify-center lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                        <span className="flex w-fit items-center gap-1.5 rounded-full bg-[#E5F9F1] px-3 py-1.5 text-[11px] font-extrabold text-[#009A69] dark:bg-[#203B33]">
+                          <CheckCircle2 size={13} />
+                          Published
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => openTestDetails(test)}
+                          className="flex items-center justify-center gap-2 rounded-xl bg-[#FF456C] px-3 py-3 text-xs font-bold text-white transition hover:bg-[#E92E59] lg:w-full"
+                        >
+                          View test <ArrowRight size={15} />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+
+                  {filteredTests.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-[#DCE0E9] bg-white px-5 py-14 text-center dark:border-[#48434E] dark:bg-[#211e27]">
+                      <Search
+                        size={28}
+                        className="mx-auto text-[#8A8493]"
+                      />
+
+                      <h3 className="mt-3 text-base font-extrabold">
+                        {tests.length === 0
+                          ? "No published mock tests available"
+                          : activeSkill !== "All Tests"
+                            ? "Full mock tests include all four skills"
+                            : "No mock tests found"}
                       </h3>
 
-                      {test.popular && (
-                        <span className="rounded-full bg-[#FFF0F3] px-2 py-1 text-[10px] font-extrabold text-[#FF456C] dark:bg-[#38202B]">
-                          ★ Most Popular
-                        </span>
-                      )}
+                      <p className="mt-2 text-sm text-[#777184] dark:text-[#AAA5B4]">
+                        {tests.length === 0
+                          ? "Published tests will appear here when they become available."
+                          : activeSkill !== "All Tests"
+                            ? "Choose All Tests to view the available full-length tests."
+                            : "Try changing your search or selected category."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setActiveSkill("All Tests");
+                          setActiveCategory("All");
+                        }}
+                        className="mt-4 rounded-xl bg-[#FF456C] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#E92E59]"
+                      >
+                        Reset filters
+                      </button>
                     </div>
+                  )}
+                </>
+              )}
 
-                    <p className="mt-2 text-xs leading-5 text-[#777184] dark:text-[#AAA5B4]">
-                      {test.subtitle}
-                    </p>
+              {/* PAGINATION */}
 
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#716A7B] dark:text-[#C6C0CD]">
-                      <span className="flex items-center gap-1.5">
-                        <FileText size={14} />
-                        {test.sections} Sections
-                      </span>
+              {!loading && !error && pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between rounded-xl border border-[#E8EAF0] bg-white p-3 dark:border-[#393440] dark:bg-[#211e27]">
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage((value) => value - 1)}
+                    className="rounded-lg border border-[#E8EAF0] px-3 py-2 text-xs font-bold disabled:opacity-40 dark:border-[#393440]"
+                  >
+                    Previous
+                  </button>
 
-                      <span className="flex items-center gap-1.5">
-                        <Clock size={14} />
-                        {test.duration}
-                      </span>
-
-                      <span className="flex items-center gap-1.5">
-                        <BarChart3 size={14} />
-                        Exam-style format
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-row items-center justify-between gap-3 border-t border-[#ECECF1] pt-3 dark:border-[#393440] sm:col-span-2 lg:col-span-1 lg:flex-col lg:items-stretch lg:justify-center lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                    <span
-                      className={`flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold ${
-                        test.type === "Free"
-                          ? "bg-[#E5F9F1] text-[#009A69] dark:bg-[#203B33]"
-                          : "bg-[#FFF4E5] text-[#D97706] dark:bg-[#3B3020]"
-                      }`}
-                    >
-                      {test.type === "Pro" ? (
-                        <LockKeyhole size={13} />
-                      ) : (
-                        <CheckCircle2 size={13} />
-                      )}
-                      {test.type}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => startTest(test)}
-                      className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-bold transition lg:w-full ${
-                        test.type === "Free"
-                          ? "bg-[#FF456C] text-white hover:bg-[#E92E59]"
-                          : "border border-[#FF9BAF] bg-white text-[#FF456C] hover:bg-[#FFF0F3] dark:border-[#75404F] dark:bg-[#292530] dark:text-[#FF829B] dark:hover:bg-[#38202B]"
-                      }`}
-                    >
-                      {test.type === "Free" ? (
-                        <>
-                          Start test <ArrowRight size={15} />
-                        </>
-                      ) : (
-                        <>
-                          <LockKeyhole size={14} />
-                          Upgrade to unlock
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </article>
-              ))}
-
-              {/* EMPTY STATE */}
-
-              {filteredTests.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-[#DCE0E9] bg-white px-5 py-14 text-center dark:border-[#48434E] dark:bg-[#211e27]">
-                  <Search
-                    size={28}
-                    className="mx-auto text-[#8A8493]"
-                  />
-
-                  <h3 className="mt-3 text-base font-extrabold">
-                    No mock tests found
-                  </h3>
-
-                  <p className="mt-2 text-sm text-[#777184] dark:text-[#AAA5B4]">
-                    Try changing your search or selected category.
-                  </p>
+                  <span className="text-xs text-[#777184] dark:text-[#AAA5B4]">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </span>
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setSearch("");
-                      setActiveSkill("All Tests");
-                      setActiveCategory("All");
-                    }}
-                    className="mt-4 rounded-xl bg-[#FF456C] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#E92E59]"
+                    disabled={page >= pagination.totalPages}
+                    onClick={() => setPage((value) => value + 1)}
+                    className="rounded-lg border border-[#E8EAF0] px-3 py-2 text-xs font-bold disabled:opacity-40 dark:border-[#393440]"
                   >
-                    Reset filters
+                    Next
                   </button>
                 </div>
               )}
@@ -632,62 +821,90 @@ export default function MockTestsPage() {
                 </button>
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                <div className="relative flex h-28 w-28 shrink-0 items-center justify-center">
-                  <svg viewBox="0 0 120 120" className="-rotate-90">
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="48"
-                      fill="none"
-                      stroke="#E9E9EF"
-                      strokeWidth="10"
-                      className="dark:stroke-[#403B46]"
-                    />
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoaderCircle
+                    size={22}
+                    className="animate-spin text-[#FF456C]"
+                  />
+                </div>
+              ) : historyError ? (
+                <p className="mt-4 text-xs text-red-500">
+                  {historyError}
+                </p>
+              ) : (
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="relative flex h-28 w-28 shrink-0 items-center justify-center">
+                    <svg viewBox="0 0 120 120" className="-rotate-90">
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="48"
+                        fill="none"
+                        stroke="#E9E9EF"
+                        strokeWidth="10"
+                        className="dark:stroke-[#403B46]"
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="48"
+                        fill="none"
+                        stroke="#FF456C"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeDasharray={`${totalAttempts ? (completedCount / totalAttempts) * 302 : 0} 302`}
+                      />
+                    </svg>
 
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="48"
-                      fill="none"
-                      stroke="#FF456C"
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      strokeDasharray="120 302"
-                    />
-                  </svg>
+                    <div className="absolute text-center">
+                      <p className="text-2xl font-black">
+                        {completedCount}
+                      </p>
+                      <p className="text-[10px] text-[#898394] dark:text-[#AAA5B4]">
+                        Completed
+                      </p>
+                    </div>
+                  </div>
 
-                  <div className="absolute text-center">
-                    <p className="text-2xl font-black">2/5</p>
-                    <p className="text-[10px] text-[#898394] dark:text-[#AAA5B4]">
-                      Completed
-                    </p>
+                  <div className="min-w-0 flex-1 space-y-3">
+                    {[
+                      {
+                        label: "Completed",
+                        count: completedCount,
+                        color: "#00A879",
+                      },
+                      {
+                        label: "In progress",
+                        count: inProgressCount,
+                        color: "#FF456C",
+                      },
+                      {
+                        label: "Total attempts",
+                        count: totalAttempts,
+                        color: "#96909F",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="flex items-center gap-2 text-[#777184] dark:text-[#C6C0CD]">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          {item.label}
+                        </span>
+
+                        <span className="font-extrabold">
+                          {item.count}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                <div className="min-w-0 flex-1 space-y-3">
-                  {[
-                    { label: "Completed", count: "2", color: "#00A879" },
-                    { label: "In progress", count: "0", color: "#FF456C" },
-                    { label: "Not attempted", count: "3", color: "#96909F" },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-center justify-between gap-2 text-xs"
-                    >
-                      <span className="flex items-center gap-2 text-[#777184] dark:text-[#C6C0CD]">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        {item.label}
-                      </span>
-
-                      <span className="font-extrabold">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
             </Panel>
 
             {/* LATEST BAND SCORE */}
@@ -720,17 +937,41 @@ export default function MockTestsPage() {
                 </p>
 
                 <div className="mt-1 flex items-end justify-between">
-                  <p className="text-3xl font-black">6.5</p>
+                  <p className="text-3xl font-black">
+                    {historyLoading ? "..." : latestBand ?? "—"}
+                  </p>
                   <TrendingUp size={25} className="text-[#FF456C]" />
                 </div>
+
+                <p className="mt-2 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
+                  {latestScore?.mockScore?.completedAt
+                    ? `Completed ${formatDate(latestScore.mockScore.completedAt)}`
+                    : "No evaluated mock score available yet."}
+                </p>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
-                  { label: "Listening", score: "6.0", icon: Headphones },
-                  { label: "Reading", score: "6.5", icon: BookOpen },
-                  { label: "Writing", score: "6.0", icon: PenLine },
-                  { label: "Speaking", score: "7.0", icon: Mic },
+                  {
+                    label: "Listening",
+                    score: latestScore?.mockScore?.listeningBand,
+                    icon: Headphones,
+                  },
+                  {
+                    label: "Reading",
+                    score: latestScore?.mockScore?.readingBand,
+                    icon: BookOpen,
+                  },
+                  {
+                    label: "Writing",
+                    score: latestScore?.mockScore?.writingBand,
+                    icon: PenLine,
+                  },
+                  {
+                    label: "Speaking",
+                    score: latestScore?.mockScore?.speakingBand,
+                    icon: Mic,
+                  },
                 ].map((skill) => {
                   const Icon = skill.icon;
 
@@ -746,7 +987,7 @@ export default function MockTestsPage() {
                       <div className="mt-2 flex items-center gap-2">
                         <Icon size={15} className="text-[#FF456C]" />
                         <span className="text-sm font-extrabold">
-                          {skill.score}
+                          {skill.score ?? "—"}
                         </span>
                       </div>
                     </div>
@@ -774,37 +1015,49 @@ export default function MockTestsPage() {
               </div>
 
               <div className="mt-3 space-y-3">
-                {visibleRecentTests.map((test, index) => (
-                  <div
-                    key={`${test.title}-${index}`}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4ECFF] text-[#873BFA] dark:bg-[#30243E]">
-                      <FileText size={18} />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold">
-                        {test.title}
-                      </p>
-
-                      <p className="mt-1 flex items-center gap-1 text-[10px] text-[#777184] dark:text-[#AAA5B4]">
-                        <CalendarDays size={12} />
-                        {test.date}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`rounded-full px-2.5 py-1.5 text-xs font-extrabold ${
-                        Number(test.score) >= 6.5
-                          ? "bg-[#E5F9F1] text-[#009A69] dark:bg-[#203B33]"
-                          : "bg-[#FFF4E5] text-[#D97706] dark:bg-[#3B3020]"
-                      }`}
+                {historyLoading ? (
+                  <p className="py-4 text-center text-xs text-[#898394]">
+                    Loading history...
+                  </p>
+                ) : historyError ? (
+                  <p className="text-xs text-red-500">
+                    {historyError}
+                  </p>
+                ) : visibleRecentTests.length === 0 ? (
+                  <p className="py-5 text-center text-xs text-[#898394]">
+                    No mock attempts yet.
+                  </p>
+                ) : (
+                  visibleRecentTests.map((test) => (
+                    <div
+                      key={test.id}
+                      className="flex items-center gap-3"
                     >
-                      {test.score}
-                    </span>
-                  </div>
-                ))}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4ECFF] text-[#873BFA] dark:bg-[#30243E]">
+                        <FileText size={18} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold">
+                          {getTestTitle(test.testVersion?.test)}
+                        </p>
+
+                        <p className="mt-1 flex items-center gap-1 text-[10px] text-[#777184] dark:text-[#AAA5B4]">
+                          <CalendarDays size={12} />
+                          {formatDate(test.submittedAt || test.startedAt)}
+                        </p>
+
+                        <p className="mt-1 text-[10px] text-[#898394]">
+                          {getStatus(test.status)}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-[#FFF0F3] px-2.5 py-1.5 text-xs font-extrabold text-[#FF456C] dark:bg-[#38202B]">
+                        {test.mockScore?.overallBand ?? "—"}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </Panel>
 
@@ -839,15 +1092,13 @@ export default function MockTestsPage() {
         </p>
       </div>
 
-      {/* FREE TEST DETAILS MODAL */}
+      {/* TEST DETAILS MODAL - ORIGINAL IMAGE PRESERVED */}
 
       {selectedTest && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedTest(null);
-            }
+            if (event.target === event.currentTarget) closeTestModal();
           }}
         >
           <div
@@ -867,93 +1118,221 @@ export default function MockTestsPage() {
 
               <button
                 type="button"
-                onClick={() => setSelectedTest(null)}
+                onClick={closeTestModal}
+                disabled={starting}
                 aria-label="Close test details"
-                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#252333] shadow-md"
+                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#252333] shadow-md disabled:opacity-50"
               >
                 <X size={18} />
               </button>
 
               <div className="absolute bottom-4 left-5 right-5">
                 <span className="rounded-md bg-[#E5F9F1] px-2.5 py-1 text-[10px] font-extrabold text-[#009A69]">
-                  FREE TEST
+                  PUBLISHED TEST
                 </span>
 
                 <h2
                   id="mock-test-title"
                   className="mt-2 text-xl font-black text-white"
                 >
-                  {selectedTest.title}
+                  {getTestTitle(testDetails || selectedTest)}
                 </h2>
               </div>
             </div>
 
             <div className="p-5 sm:p-6">
-              <p className="text-sm leading-6 text-[#777184] dark:text-[#C6C0CD]">
-                {selectedTest.subtitle}
-              </p>
-
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
-                  <FileText size={19} className="mx-auto text-[#FF456C]" />
-                  <p className="mt-2 text-sm font-extrabold">
-                    {selectedTest.sections}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
-                    Sections
+              {detailsLoading ? (
+                <div className="flex flex-col items-center py-10">
+                  <LoaderCircle
+                    size={30}
+                    className="animate-spin text-[#FF456C]"
+                  />
+                  <p className="mt-3 text-xs text-[#898394]">
+                    Loading test details...
                   </p>
                 </div>
-
-                <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
-                  <Clock size={19} className="mx-auto text-[#873BFA]" />
-                  <p className="mt-2 text-xs font-extrabold">
-                    {selectedTest.duration}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
-                    Duration
-                  </p>
+              ) : detailsError ? (
+                <div className="rounded-xl bg-red-50 p-4 text-xs text-red-600 dark:bg-red-950/30 dark:text-red-300">
+                  <p>{detailsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => openTestDetails(selectedTest)}
+                    className="mt-3 font-bold underline"
+                  >
+                    Try again
+                  </button>
                 </div>
+              ) : startedAttempt ? (
+                <div className="py-5 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#E5F9F1] text-[#009A69] dark:bg-[#203B33]">
+                    <CheckCircle2 size={34} />
+                  </div>
 
-                <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
-                  <Target size={19} className="mx-auto text-[#00A879]" />
-                  <p className="mt-2 text-sm font-extrabold">Free</p>
-                  <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
-                    Access
+                  <h3 className="mt-4 text-lg font-black">
+                    Mock attempt started!
+                  </h3>
+
+                  <p className="mt-2 text-xs text-[#777184] dark:text-[#AAA5B4]">
+                    Your attempt has been created successfully.
                   </p>
+
+                  <p className="mt-3 break-all rounded-lg bg-[#F6F6F9] p-3 text-xs font-semibold dark:bg-[#292530]">
+                    Attempt ID: {startedAttempt.id}
+                  </p>
+
+                  <p className="mt-3 text-[10px] text-[#96909F]">
+                    The attempt screen navigation will be connected when
+                    its frontend route is confirmed.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={closeTestModal}
+                    className="mt-5 w-full rounded-xl bg-[#FF456C] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    Close
+                  </button>
                 </div>
-              </div>
+              ) : testDetails ? (
+                <>
+                  <p className="text-sm leading-6 text-[#777184] dark:text-[#C6C0CD]">
+                    {testDetails.book?.title || testDetails.title}
+                  </p>
 
-              <div className="mt-5 rounded-xl border border-[#F1DDE2] bg-[#FFF5F7] p-3 text-xs leading-5 text-[#716A7B] dark:border-[#49333D] dark:bg-[#30232D] dark:text-[#C6C0CD]">
-                <p className="font-extrabold text-[#252333] dark:text-white">
-                  Before you begin
-                </p>
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
+                      <FileText
+                        size={19}
+                        className="mx-auto text-[#FF456C]"
+                      />
+                      <p className="mt-2 text-sm font-extrabold">
+                        {testDetails.publishedVersion?.modules?.length ?? 4}
+                      </p>
+                      <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
+                        Modules
+                      </p>
+                    </div>
 
-                <p className="mt-1">
-                  Find a quiet place and keep enough time to complete your practice.
-                </p>
-              </div>
+                    <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
+                      <Clock
+                        size={19}
+                        className="mx-auto text-[#873BFA]"
+                      />
+                      <p className="mt-2 text-xs font-extrabold">
+                        {getDuration(
+                          testDetails.publishedVersion?.modules || []
+                        )}
+                      </p>
+                      <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
+                        Duration
+                      </p>
+                    </div>
 
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTest(null)}
-                  className="flex-1 rounded-xl border border-[#E8EAF0] px-4 py-3 text-sm font-bold text-[#716A7B] transition hover:bg-[#F6F6F9] dark:border-[#393440] dark:text-[#C6C0CD] dark:hover:bg-[#292530]"
-                >
-                  Cancel
-                </button>
+                    <div className="rounded-xl bg-[#F6F6F9] p-3 text-center dark:bg-[#292530]">
+                      <Target
+                        size={19}
+                        className="mx-auto text-[#00A879]"
+                      />
+                      <p className="mt-2 text-sm font-extrabold">
+                        Full
+                      </p>
+                      <p className="mt-1 text-[10px] text-[#898394] dark:text-[#AAA5B4]">
+                        Mock test
+                      </p>
+                    </div>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={continueTest}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF456C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#E92E59]"
-                >
-                  Continue <PlayCircle size={18} />
-                </button>
-              </div>
+                  <div className="mt-5">
+                    <h3 className="text-xs font-extrabold">
+                      Included modules
+                    </h3>
 
-              <p className="mt-3 text-center text-[10px] leading-4 text-[#96909F] dark:text-[#777184]">
-                Demo interface: the complete timed test and score calculation need backend integration.
-              </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {(testDetails.publishedVersion?.modules || []).map(
+                        (module) => {
+                          const moduleIcons = {
+                            LISTENING: Headphones,
+                            READING: BookOpen,
+                            WRITING: PenLine,
+                            SPEAKING: Mic,
+                          };
+
+                          const Icon =
+                            moduleIcons[module.section] || FileText;
+
+                          return (
+                            <div
+                              key={module.id}
+                              className="flex items-center gap-2 rounded-xl border border-[#E8EAF0] p-3 dark:border-[#393440]"
+                            >
+                              <Icon
+                                size={17}
+                                className="text-[#FF456C]"
+                              />
+                              <span className="text-xs font-bold">
+                                {module.section}
+                              </span>
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+
+                  {startError && (
+                    <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-600 dark:bg-red-950/30 dark:text-red-300">
+                      <AlertCircle size={16} className="shrink-0" />
+                      {startError}
+                    </div>
+                  )}
+
+                  <div className="mt-5 rounded-xl border border-[#F1DDE2] bg-[#FFF5F7] p-3 text-xs leading-5 text-[#716A7B] dark:border-[#49333D] dark:bg-[#30232D] dark:text-[#C6C0CD]">
+                    <p className="font-extrabold text-[#252333] dark:text-white">
+                      Before you begin
+                    </p>
+                    <p className="mt-1">
+                      Find a quiet place and keep enough time to complete
+                      your full mock test.
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={closeTestModal}
+                      disabled={starting}
+                      className="flex-1 rounded-xl border border-[#E8EAF0] px-4 py-3 text-sm font-bold text-[#716A7B] transition hover:bg-[#F6F6F9] disabled:opacity-50 dark:border-[#393440] dark:text-[#C6C0CD] dark:hover:bg-[#292530]"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={continueTest}
+                      disabled={
+                        starting ||
+                        !testDetails.publishedVersion?.id
+                      }
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF456C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#E92E59] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {starting ? (
+                        <>
+                          <LoaderCircle
+                            size={17}
+                            className="animate-spin"
+                          />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          Start full mock test
+                          <PlayCircle size={18} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -989,21 +1368,27 @@ export default function MockTestsPage() {
               <Sparkles size={28} />
             </div>
 
-            <h2 id="upgrade-title" className="mt-5 text-2xl font-black">
-              Unlock more practice
+            <h2
+              id="upgrade-title"
+              className="mt-5 text-2xl font-black"
+            >
+              Explore more plans
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#777184] dark:text-[#C6C0CD]">
-              Premium tests are shown as locked demo content. Connect your subscription and payment flow to unlock real paid tests.
+              Explore available plans and subscription options.
             </p>
 
             <div className="mt-5 space-y-3">
               {[
-                "Access to premium mock tests",
-                "Detailed skill-wise performance analysis",
+                "Access to available mock tests",
+                "Detailed performance analysis",
                 "Track your progress over time",
               ].map((feature) => (
-                <div key={feature} className="flex items-center gap-2.5">
+                <div
+                  key={feature}
+                  className="flex items-center gap-2.5"
+                >
                   <CheckCircle2
                     size={17}
                     className="shrink-0 text-[#00A879]"

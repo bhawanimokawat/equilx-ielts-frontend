@@ -1,74 +1,80 @@
+
 import { createContext, useState, useEffect } from "react";
-import { api, setToken } from "../components/services/api.js";
+import authService, { setToken } from "../services/authService";
 
 const AuthContext = createContext(null);
 
-function readStoredSession() {
-  try {
-    const stored = JSON.parse(localStorage.getItem("equilx_user") || "null");
-    const token = stored?.token || localStorage.getItem("equilx_token") || "";
-    return token ? { stored, token } : null;
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }) {
-  const [initialSession] = useState(readStoredSession);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(initialSession));
+  const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
-  // A cached browser profile is only a hint. Revalidate every stored session
-  // against the backend before rendering any protected route.
   useEffect(() => {
     let cancelled = false;
-    if (!initialSession) {
-      setToken("");
-      return () => { cancelled = true; };
-    }
 
-    setToken(initialSession.token);
-    api.getCurrentUser()
-      .then((response) => {
-        if (!cancelled) setUser({ ...response.data.user, token: initialSession.token });
-      })
-      .catch(() => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem("equilx_token");
+
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setToken(token);
+        const response = await authService.getCurrentUser();
+
+        if (!cancelled) {
+          setUser({
+            ...response.data.user,
+            token,
+          });
+        }
+      } catch (error) {
         if (!cancelled) {
           setUser(null);
           setToken("");
-          try { localStorage.removeItem("equilx_user"); } catch { /* storage may be unavailable */ }
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [initialSession]);
-
-  useEffect(() => {
-    if (user?.token) {
-      setToken(user.token);
-      try {
-        localStorage.setItem("equilx_user", JSON.stringify(user));
-      } catch {
-        // Keep the in-memory session usable if browser storage is unavailable.
       }
-    } else {
-      setToken("");
-      try { localStorage.removeItem("equilx_user"); } catch { /* storage may be unavailable */ }
-    }
-  }, [user]);
+    };
 
-  const loginWithCredentials = async (email, password) => {
+    initializeAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const login = async (email, password) => {
     setLoading(true);
     setAuthError(null);
+
     try {
-      const response = await api.login(email, password);
-      const userData = { ...response.data.user, token: response.data.tokens.accessToken };
-      setUser(userData);
-      return { success: true };
+      const response = await authService.login(email, password);
+
+      if (response.data?.twoFactorRequired) {
+        return {
+          success: true,
+          twoFactorRequired: true,
+          challengeId: response.data.challengeId,
+        };
+      }
+
+      const token = response.data?.accessToken;
+      const userData = response.data?.user;
+      
+
+
+      if (!token || !userData) {
+        throw new Error("Invalid login response from server.");
+      }
+
+      setToken(token);
+      setUser({ ...userData, token });
+
+      return { success: true, user: userData };
     } catch (error) {
       setAuthError(error.message);
       return { success: false, error: error.message };
@@ -77,20 +83,26 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken("");
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error("Logout API error:", error);
+    } finally {
+      setToken("");
+      setUser(null);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || "GUEST",
+        role: user?.platformRole || "GUEST",
         isAuthenticated: Boolean(user?.token),
         loading,
         authError,
-        login: loginWithCredentials,
+        login,
         logout,
       }}
     >

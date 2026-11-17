@@ -1,5 +1,8 @@
 
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/useAuth";
 import React, { useState } from "react";
+
 import {
   Mail,
   LockKeyhole,
@@ -13,10 +16,13 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+
 import AuthNavbar from "../../components/common/AuthNavbar";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
   const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -48,9 +54,35 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Connect your existing login API here.
-      console.log("Login submitted:", formData);
+      const result = await login(
+        formData.email.trim(),
+        formData.password
+      );
 
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      // Staff login may require OTP verification
+      if (result.twoFactorRequired) {
+        navigate("/verify-login-otp", {
+          state: {
+            challengeId: result.challengeId,
+          },
+        });
+        return;
+      }
+
+      const role = result.user?.platformRole;
+
+      // Super Admin navigation
+      if (role === "SUPER_ADMIN") {
+        navigate("/superadmin/dashboard");
+      } else {
+        // Default destination until institute membership
+        // based role resolution is connected.
+        navigate("/student/dashboard");
+      }
     } catch (err) {
       setError(err.message || "Unable to login. Please try again.");
     } finally {
@@ -341,6 +373,7 @@ export default function Login() {
                     >
                       Sign up
                     </Link>
+
                   </p>
 
                 </div>
