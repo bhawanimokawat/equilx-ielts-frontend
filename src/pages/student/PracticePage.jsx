@@ -109,6 +109,7 @@ const getList = (response) => {
 
 const getSkillName = (module) => {
   const value = [
+    module?.section,
     module?.name,
     module?.title,
     module?.type,

@@ -1,5 +1,5 @@
 
-import { request } from "./authService";
+import { request } from "./authService1";
 
 const getBase = (instituteId) => {
   if (!instituteId) {

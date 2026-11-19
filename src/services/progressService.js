@@ -1,5 +1,5 @@
 
-import { request } from "./authService";
+import { request } from "./authService1";
 
 const progressService = {
   getResults(page = 1, limit = 50, usageType) {

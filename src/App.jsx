@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -6,6 +5,9 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import { useEffect } from "react";
+import { Toaster } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 
 // Landing Page
 import LandingPage from "./pages/LandingPage";
@@ -16,6 +18,7 @@ import Register from "./pages/auth/Register";
 import VerifyOTP from "./pages/auth/VerifyOTP";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import VerifyLoginOtp from "./pages/auth/VerifyLoginOtp";
 
 // Student Pages
 import Dashboard from "./pages/student/Dashboard";
@@ -63,8 +66,19 @@ import Messaging from "./pages/trainer/Messaging";
 import LeadsCRM from "./pages/trainer/LeadsCRM";
 
 export default function App() {
+  useEffect(() => {
+  toast.error("Test error message");
+  toast.success("Test success message");
+}, []);
   return (
     <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          error: { duration: 5000 },
+        }}
+      />
       <Routes>
         {/* Landing Page */}
         <Route path="/" element={<LandingPage />} />
@@ -75,6 +89,7 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-login-otp" element={<VerifyLoginOtp />} />
 
         {/* Student Portal */}
         <Route

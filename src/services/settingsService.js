@@ -1,6 +1,6 @@
 
-import { request } from "./authService";
-import { setToken } from "./authService";
+import { request } from "./authService1";
+import { setToken } from "./authService1";
 
 const settingsService = {
   getProfile: () => request("/users/me"),

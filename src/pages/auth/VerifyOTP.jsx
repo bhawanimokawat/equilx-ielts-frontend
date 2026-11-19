@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import AuthNavbar from "../../components/common/AuthNavbar";
-import authService from "../../services/authService";
+import authService from "../../services/authService1";
 
 export default function EmailVerificationPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);

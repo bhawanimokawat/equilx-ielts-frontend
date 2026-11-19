@@ -1,24 +1,26 @@
+import api from "../api/axiosInstance";
 
-import { request } from "./authService";
+// Every function returns the backend body: { success, data, ... }
+const unwrap = (response) => response.data;
 
 const studentService = {
-  // Get logged-in student's profile
-  getProfile: () => request("/users/me"),
+  // Logged-in student's profile
+  getProfile: () => api.get("/users/me").then(unwrap),
 
-  // Get all student attempts
-  getAttempts: () => request("/attempts"),
+  // All student attempts
+  getAttempts: () => api.get("/attempts").then(unwrap),
 
-  // Get student results
+  // Student results (paginated)
   getResults: (page = 1, limit = 5) =>
-    request(`/results?page=${page}&limit=${limit}`),
+    api.get("/results", { params: { page, limit } }).then(unwrap),
 
-  // Get practice history
+  // Practice history (paginated)
   getPracticeHistory: (page = 1, limit = 5) =>
-    request(`/practice/history?page=${page}&limit=${limit}`),
+    api.get("/practice/history", { params: { page, limit } }).then(unwrap),
 
-  // Get mock test history
+  // Mock test history (paginated)
   getMockHistory: (page = 1, limit = 5) =>
-    request(`/mock/history?page=${page}&limit=${limit}`),
+    api.get("/mock/history", { params: { page, limit } }).then(unwrap),
 };
 
 export default studentService;

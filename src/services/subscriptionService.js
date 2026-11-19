@@ -1,5 +1,5 @@
 
-import { request } from "./authService";
+import { request } from "./authService1";
 
 const subscriptionService = {
   // Available plans and current effective plan versions

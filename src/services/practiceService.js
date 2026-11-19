@@ -1,5 +1,7 @@
 
-import { request } from "./authService";
+import api from "../api/axiosInstance";
+
+const unwrap = (response) => response.data;
 
 const practiceService = {
   // Get published practice tests
@@ -13,7 +15,7 @@ const practiceService = {
       params.set("category", category);
     }
 
-    return request(`/practice/tests?${params.toString()}`);
+    return api.get(`/practice/tests?${params.toString()}`).then(unwrap);
   },
 
   // Get one practice test with modules, parts and questions
@@ -22,7 +24,7 @@ const practiceService = {
       throw new Error("Test ID is required.");
     }
 
-    return request(`/practice/tests/${testId}`);
+    return api.get(`/practice/tests/${testId}`).then(unwrap);
   },
 
   // Start practice with exactly one moduleId or partId
@@ -38,15 +40,16 @@ const practiceService = {
       throw new Error("Select exactly one module or part.");
     }
 
-    return request(`/practice/tests/${testVersionId}/start`, {
-      method: "POST",
-      body: JSON.stringify(selection),
-    });
+    return api
+      .post(`/practice/tests/${testVersionId}/start`, selection)
+      .then(unwrap);
   },
 
   // Get logged-in student's practice history
   getHistory: (page = 1, limit = 10) => {
-    return request(`/practice/history?page=${page}&limit=${limit}`);
+    return api
+      .get(`/practice/history?page=${page}&limit=${limit}`)
+      .then(unwrap);
   },
 
   // Get one practice attempt's details
@@ -55,7 +58,7 @@ const practiceService = {
       throw new Error("Attempt ID is required.");
     }
 
-    return request(`/practice/history/${attemptId}`);
+    return api.get(`/practice/history/${attemptId}`).then(unwrap);
   },
 };
 
