@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Plus,
@@ -14,217 +15,187 @@ import {
   X,
   ChevronDown,
   Mail,
-  Phone,
-  MapPin,
   CalendarDays,
   Download,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
+
 import Sidebar from "./Sidebar.jsx";
 import Navbar from "./Navbar.jsx";
 
-const initialUsers = [
-  {
-    id: 1,
-    name: "Rahul Sharma",
-    email: "rahul.sharma@example.com",
-    phone: "+91 98765 43210",
-    role: "Institute Admin",
-    institute: "RIT College",
-    location: "Jaipur, Rajasthan",
-    status: "Active",
-    joined: "20 Oct 2026",
-  },
-  {
-    id: 2,
-    name: "Priya Verma",
-    email: "priya.verma@example.com",
-    phone: "+91 98765 43211",
-    role: "Principal",
-    institute: "Arya College",
-    location: "Jaipur, Rajasthan",
-    status: "Active",
-    joined: "18 Oct 2026",
-  },
-  {
-    id: 3,
-    name: "Amit Kumar",
-    email: "amit.kumar@example.com",
-    phone: "+91 98765 43212",
-    role: "Teacher",
-    institute: "RIT College",
-    location: "Jaipur, Rajasthan",
-    status: "Active",
-    joined: "16 Oct 2026",
-  },
-  {
-    id: 4,
-    name: "Neha Singh",
-    email: "neha.singh@example.com",
-    phone: "+91 98765 43213",
-    role: "Student",
-    institute: "Purnima College",
-    location: "Jaipur, Rajasthan",
-    status: "Inactive",
-    joined: "14 Oct 2026",
-  },
-  {
-    id: 5,
-    name: "Vikas Meena",
-    email: "vikas.meena@example.com",
-    phone: "+91 98765 43214",
-    role: "HOD",
-    institute: "Arya College",
-    location: "Jaipur, Rajasthan",
-    status: "Active",
-    joined: "12 Oct 2026",
-  },
-  {
-    id: 6,
-    name: "Anjali Gupta",
-    email: "anjali.gupta@example.com",
-    phone: "+91 98765 43215",
-    role: "Student",
-    institute: "RIT College",
-    location: "Jaipur, Rajasthan",
-    status: "Pending",
-    joined: "10 Oct 2026",
-  },
-  {
-    id: 7,
-    name: "Suresh Patel",
-    email: "suresh.patel@example.com",
-    phone: "+91 98765 43216",
-    role: "Director",
-    institute: "Purnima College",
-    location: "Jaipur, Rajasthan",
-    status: "Active",
-    joined: "08 Oct 2026",
-  },
-];
-
-const initialInstitutes = [
-  {
-    id: 101,
-    name: "RIT College",
-    code: "INST-001",
-    admin: "Rahul Sharma",
-    email: "rit.admin@example.com",
-    plan: "Institute 12M",
-    users: 245,
-    status: "Active",
-    joined: "12 Jan 2026",
-  },
-  {
-    id: 102,
-    name: "Arya College",
-    code: "INST-002",
-    admin: "Priya Verma",
-    email: "arya.admin@example.com",
-    plan: "Institute 6M",
-    users: 182,
-    status: "Active",
-    joined: "05 Mar 2026",
-  },
-  {
-    id: 103,
-    name: "Purnima College",
-    code: "INST-003",
-    admin: "Suresh Patel",
-    email: "purnima.admin@example.com",
-    plan: "Free",
-    users: 96,
-    status: "Pending",
-    joined: "17 Sep 2026",
-  },
-  {
-    id: 104,
-    name: "Global IELTS Academy",
-    code: "INST-004",
-    admin: "Mohit Jain",
-    email: "global.admin@example.com",
-    plan: "Institute 12M",
-    users: 320,
-    status: "Active",
-    joined: "22 Feb 2026",
-  },
-];
-
-const roles = [
-  "All Roles",
-  "Super Admin",
-  "Institute Admin",
-  "Director",
-  "Principal",
-  "HOD",
-  "Teacher",
-  "Student",
-];
-
-const statusOptions = ["All Status", "Active", "Inactive", "Pending"];
-
-const emptyUser = {
-  name: "",
-  email: "",
-  phone: "",
-  role: "Student",
-  institute: "RIT College",
-  location: "",
-  status: "Active",
-};
+import {
+  getUsers,
+  updateUserStatus,
+  getOrganizations,
+  createOrganization,
+  updateOrganization,
+  getOrganizationById,
+  getOrganizationMembers,
+} from "../../services/super-admin/userInstitute.service.js";
 
 const emptyInstitute = {
   name: "",
   code: "",
-  admin: "",
-  email: "",
-  plan: "Free",
-  users: 0,
-  status: "Active",
+};
+
+const roleOptions = ["All Roles", "Super Admin", "User"];
+const statusOptions = ["All Status", "Active", "Inactive"];
+
+const formatDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getErrorMessage = (error) =>
+  error?.response?.data?.message ||
+  error?.response?.data?.error?.message ||
+  error?.message ||
+  "Something went wrong. Please try again.";
+
+const normalizeUser = (user) => ({
+  id: user.id,
+  name: user.profile?.name || "Unnamed User",
+  email: user.email || "—",
+  phone: user.profile?.phone || "",
+  role: user.platformRole === "SUPER_ADMIN" ? "Super Admin" : "User",
+  status: user.isActive ? "Active" : "Inactive",
+  joined: formatDate(user.createdAt),
+  raw: user,
+});
+
+const normalizeInstitute = (institute) => ({
+  id: institute.id,
+  name: institute.name || "Unnamed Institute",
+  code: institute.slug || "—",
+  users: institute._count?.memberships ?? 0,
+  status: institute.status || "UNKNOWN",
+  joined: formatDate(institute.createdAt),
+  raw: institute,
+});
+
+const normalizeStatus = (status) => {
+  const value = String(status || "").toUpperCase();
+
+  if (value === "ACTIVE") return "Active";
+  if (value === "INACTIVE") return "Inactive";
+  if (value === "SUSPENDED") return "Suspended";
+  if (value === "PENDING_APPROVAL") return "Pending";
+  if (value === "REVOKED") return "Revoked";
+
+  return status || "Unknown";
 };
 
 function StatusBadge({ status }) {
+  const normalized = normalizeStatus(status);
+
   const styles = {
     Active: "bg-emerald-50 text-emerald-700",
     Inactive: "bg-slate-100 text-slate-600",
     Pending: "bg-amber-50 text-amber-700",
+    Suspended: "bg-red-50 text-red-700",
+    Revoked: "bg-red-50 text-red-700",
+    Unknown: "bg-slate-100 text-slate-600",
+  };
+
+  const dotStyles = {
+    Active: "bg-emerald-500",
+    Inactive: "bg-slate-400",
+    Pending: "bg-amber-500",
+    Suspended: "bg-red-500",
+    Revoked: "bg-red-500",
+    Unknown: "bg-slate-400",
   };
 
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold ${
-        styles[status] || styles.Inactive
+        styles[normalized] || styles.Unknown
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          status === "Active"
-            ? "bg-emerald-500"
-            : status === "Pending"
-              ? "bg-amber-500"
-              : "bg-slate-400"
+          dotStyles[normalized] || dotStyles.Unknown
         }`}
       />
-      {status}
+      {normalized}
     </span>
   );
 }
 
 export default function UserInstituteManagement() {
   const [activeTab, setActiveTab] = useState("Users");
-  const [users, setUsers] = useState(initialUsers);
-  const [institutes, setInstitutes] = useState(initialInstitutes);
+
+  const [users, setUsers] = useState([]);
+  const [institutes, setInstitutes] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [instituteFilter, setInstituteFilter] = useState("All Institutes");
+
   const [showModal, setShowModal] = useState(false);
   const [showDetails, setShowDetails] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [editingInstitute, setEditingInstitute] = useState(false);
-  const [userForm, setUserForm] = useState(emptyUser);
   const [instituteForm, setInstituteForm] = useState(emptyInstitute);
+
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError("");
+
+      const [usersResponse, institutesResponse] = await Promise.all([
+        getUsers({ page: 1, limit: 100 }),
+        getOrganizations({ page: 1, limit: 100 }),
+      ]);
+
+      // User API response: { success, data: { users, pagination } }
+      const userPayload = usersResponse?.data;
+      const userList = Array.isArray(userPayload)
+        ? userPayload
+        : userPayload?.users || [];
+
+      // Organization response may expose the list as data or nested data.
+      const organizationPayload = institutesResponse?.data;
+      const organizationList = Array.isArray(organizationPayload)
+        ? organizationPayload
+        : organizationPayload?.data ||
+          organizationPayload?.organizations ||
+          [];
+
+      setUsers(userList.map(normalizeUser));
+      setInstitutes(organizationList.map(normalizeInstitute));
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredUsers = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -233,20 +204,19 @@ export default function UserInstituteManagement() {
       const matchesSearch = [
         user.name,
         user.email,
-        user.role,
-        user.institute,
         user.phone,
-      ].some((value) => String(value || "").toLowerCase().includes(term));
+        user.role,
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(term)
+      );
 
       return (
         matchesSearch &&
         (roleFilter === "All Roles" || user.role === roleFilter) &&
-        (statusFilter === "All Status" || user.status === statusFilter) &&
-        (instituteFilter === "All Institutes" ||
-          user.institute === instituteFilter)
+        (statusFilter === "All Status" || user.status === statusFilter)
       );
     });
-  }, [users, search, roleFilter, statusFilter, instituteFilter]);
+  }, [users, search, roleFilter, statusFilter]);
 
   const filteredInstitutes = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -255,221 +225,202 @@ export default function UserInstituteManagement() {
       const matchesSearch = [
         institute.name,
         institute.code,
-        institute.admin,
-        institute.email,
-        institute.plan,
-      ].some((value) => String(value || "").toLowerCase().includes(term));
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(term)
+      );
 
       return (
         matchesSearch &&
         (statusFilter === "All Status" ||
-          institute.status === statusFilter)
+          normalizeStatus(institute.status) === statusFilter)
       );
     });
   }, [institutes, search, statusFilter]);
 
-  const activeUsers = users.filter((user) => user.status === "Active").length;
+  const activeUsers = users.filter(
+    (user) => user.status === "Active"
+  ).length;
 
   const activeInstitutes = institutes.filter(
-    (institute) => institute.status === "Active"
+    (institute) =>
+      normalizeStatus(institute.status) === "Active"
   ).length;
 
-  const pendingUsers = users.filter(
-    (user) => user.status === "Pending"
+  const inactiveUsers = users.filter(
+    (user) => user.status === "Inactive"
   ).length;
-
-  const openAddUser = () => {
-    setEditingId(null);
-    setEditingInstitute(false);
-    setUserForm({
-      ...emptyUser,
-      institute: institutes[0]?.name || "",
-    });
-    setShowModal(true);
-  };
-
-  const openEditUser = (user) => {
-    setEditingId(user.id);
-    setEditingInstitute(false);
-    setUserForm({
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      institute: user.institute,
-      location: user.location,
-      status: user.status,
-    });
-    setShowModal(true);
-  };
-
-  const openAddInstitute = () => {
-    setEditingId(null);
-    setEditingInstitute(true);
-    setInstituteForm({
-      ...emptyInstitute,
-      code: `INST-${String(institutes.length + 1).padStart(3, "0")}`,
-    });
-    setShowModal(true);
-  };
-
-  const openEditInstitute = (institute) => {
-    setEditingId(institute.id);
-    setEditingInstitute(true);
-    setInstituteForm({
-      name: institute.name,
-      code: institute.code,
-      admin: institute.admin,
-      email: institute.email,
-      plan: institute.plan,
-      users: institute.users,
-      status: institute.status,
-    });
-    setShowModal(true);
-  };
-
-  const handleSaveUser = (event) => {
-    event.preventDefault();
-
-    if (
-      users.some(
-        (user) =>
-          user.email.toLowerCase() === userForm.email.toLowerCase() &&
-          user.id !== editingId
-      )
-    ) {
-      setNotice("A user with this email already exists.");
-      return;
-    }
-
-    if (!institutes.some((item) => item.name === userForm.institute)) {
-      setNotice("Please select a valid institute.");
-      return;
-    }
-
-    const newUser = {
-      ...userForm,
-      id: editingId || Date.now(),
-      joined: users.find((user) => user.id === editingId)?.joined ||
-        new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-    };
-
-    setUsers((previous) =>
-      editingId
-        ? previous.map((user) => (user.id === editingId ? newUser : user))
-        : [newUser, ...previous]
-    );
-
-    setShowModal(false);
-    setNotice(
-      editingId ? "User updated successfully." : "User added successfully."
-    );
-  };
-
-  const handleSaveInstitute = (event) => {
-    event.preventDefault();
-
-    if (
-      institutes.some(
-        (institute) =>
-          (institute.name.toLowerCase() === instituteForm.name.toLowerCase() ||
-            institute.code.toLowerCase() === instituteForm.code.toLowerCase()) &&
-          institute.id !== editingId
-      )
-    ) {
-      setNotice("Institute name or code already exists.");
-      return;
-    }
-
-    const newInstitute = {
-      ...instituteForm,
-      id: editingId || Date.now(),
-      joined: institutes.find((item) => item.id === editingId)?.joined ||
-        new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-    };
-
-    setInstitutes((previous) =>
-      editingId
-        ? previous.map((item) =>
-            item.id === editingId ? newInstitute : item
-          )
-        : [newInstitute, ...previous]
-    );
-
-    setShowModal(false);
-    setNotice(
-      editingId
-        ? "Institute updated successfully."
-        : "Institute added successfully."
-    );
-  };
-
-  const toggleUserStatus = (user) => {
-    const nextStatus = user.status === "Active" ? "Inactive" : "Active";
-
-    setUsers((previous) =>
-      previous.map((item) =>
-        item.id === user.id ? { ...item, status: nextStatus } : item
-      )
-    );
-
-    setNotice(`${user.name} is now ${nextStatus.toLowerCase()}.`);
-  };
-
-  const toggleInstituteStatus = (institute) => {
-    const nextStatus =
-      institute.status === "Active" ? "Inactive" : "Active";
-
-    setInstitutes((previous) =>
-      previous.map((item) =>
-        item.id === institute.id
-          ? { ...item, status: nextStatus }
-          : item
-      )
-    );
-
-    setNotice(`${institute.name} is now ${nextStatus.toLowerCase()}.`);
-  };
 
   const resetFilters = () => {
     setSearch("");
     setRoleFilter("All Roles");
     setStatusFilter("All Status");
-    setInstituteFilter("All Institutes");
+  };
+
+  const openAddInstitute = () => {
+    setEditingId(null);
+    setInstituteForm(emptyInstitute);
+    setShowModal(true);
+  };
+
+  const openEditInstitute = (institute) => {
+    setEditingId(institute.id);
+    setInstituteForm({
+      name: institute.name,
+      code: institute.code === "—" ? "" : institute.code,
+    });
+    setShowModal(true);
+  };
+
+  const handleSaveInstitute = async (event) => {
+    event.preventDefault();
+
+    const name = instituteForm.name.trim();
+    const slug = instituteForm.code.trim().toLowerCase();
+
+    if (!name || !slug) {
+      setNotice("Institute name and slug are required.");
+      return;
+    }
+
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      setNotice(
+        "Slug can contain only lowercase letters, numbers and hyphens."
+      );
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setError("");
+
+      if (editingId) {
+        await updateOrganization(editingId, { name, slug });
+        setNotice("Institute updated successfully.");
+      } else {
+        await createOrganization({ name, slug });
+        setNotice("Institute created successfully.");
+      }
+
+      setShowModal(false);
+      await loadData(true);
+    } catch (err) {
+      setNotice(getErrorMessage(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (user) => {
+    const isActive = user.status !== "Active";
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ${
+        isActive ? "activate" : "deactivate"
+      } ${user.name}'s account?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setActionLoading(true);
+
+      await updateUserStatus(user.id, isActive);
+
+      setUsers((previous) =>
+        previous.map((item) =>
+          item.id === user.id
+            ? {
+                ...item,
+                status: isActive ? "Active" : "Inactive",
+              }
+            : item
+        )
+      );
+
+      setNotice(
+        `${user.name} is now ${
+          isActive ? "active" : "inactive"
+        }.`
+      );
+
+      if (showDetails?.id === user.id) {
+        setShowDetails((previous) => ({
+          ...previous,
+          status: isActive ? "Active" : "Inactive",
+        }));
+      }
+    } catch (err) {
+      setNotice(getErrorMessage(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewInstitute = async (institute) => {
+    try {
+      setActionLoading(true);
+
+      const [detailsResponse, membersResponse] = await Promise.all([
+        getOrganizationById(institute.id),
+        getOrganizationMembers(institute.id, {
+          page: 1,
+          limit: 100,
+        }),
+      ]);
+
+      const details = detailsResponse?.data;
+      const membersPayload = membersResponse?.data;
+
+      const members = Array.isArray(membersPayload)
+        ? membersPayload
+        : membersPayload?.data || [];
+
+      setShowDetails({
+        ...institute,
+        entityType: "institute",
+        rawDetails: details,
+        members,
+        memberCount:
+          membersResponse?.pagination?.total ??
+          membersPayload?.pagination?.total ??
+          institute.users,
+      });
+    } catch (err) {
+      setNotice(getErrorMessage(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleViewUser = (user) => {
+    setShowDetails({
+      ...user,
+      entityType: "user",
+    });
   };
 
   const exportCSV = () => {
     const rows =
       activeTab === "Users"
         ? [
-            ["Name", "Email", "Phone", "Role", "Institute", "Status"],
+            ["Name", "Email", "Phone", "Platform Role", "Status", "Joined"],
             ...filteredUsers.map((user) => [
               user.name,
               user.email,
               user.phone,
               user.role,
-              user.institute,
               user.status,
+              user.joined,
             ]),
           ]
         : [
-            ["Institute", "Code", "Admin", "Email", "Plan", "Users", "Status"],
+            ["Institute", "Slug", "Memberships", "Status", "Created"],
             ...filteredInstitutes.map((institute) => [
               institute.name,
               institute.code,
-              institute.admin,
-              institute.email,
-              institute.plan,
               institute.users,
-              institute.status,
+              normalizeStatus(institute.status),
+              institute.joined,
             ]),
           ];
 
@@ -486,11 +437,13 @@ export default function UserInstituteManagement() {
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+
     link.href = url;
     link.download =
       activeTab === "Users"
         ? "users-management.csv"
         : "institutes-management.csv";
+
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -541,16 +494,14 @@ export default function UserInstituteManagement() {
         }
 
         html.dark .user-institute-management input,
-        html.dark .user-institute-management select,
-        html.dark .user-institute-management textarea {
+        html.dark .user-institute-management select {
           background-color: #211E27 !important;
           color: #FFFFFF !important;
           border-color: #3B3441 !important;
           color-scheme: dark;
         }
 
-        html.dark .user-institute-management input::placeholder,
-        html.dark .user-institute-management textarea::placeholder {
+        html.dark .user-institute-management input::placeholder {
           color: #8F8498 !important;
         }
 
@@ -607,18 +558,47 @@ export default function UserInstituteManagement() {
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Manage accounts, institute access, roles and account status.
+                Manage platform accounts, organizations and account access.
               </p>
             </div>
 
-            <button
-              onClick={activeTab === "Users" ? openAddUser : openAddInstitute}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#e91d49]"
-            >
-              <Plus size={18} />
-              {activeTab === "Users" ? "Add New User" : "Add Institute"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => loadData(true)}
+                disabled={refreshing || loading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={17}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+                Refresh
+              </button>
+
+              {activeTab === "Institutes" && (
+                <button
+                  onClick={openAddInstitute}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#e91d49]"
+                >
+                  <Plus size={18} />
+                  Add Institute
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>{error}</span>
+              <button
+                onClick={() => loadData(true)}
+                className="font-semibold underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -634,7 +614,7 @@ export default function UserInstituteManagement() {
                 {users.length}
               </h2>
               <p className="mt-2 text-xs text-slate-400">
-                Across all institutes
+                Loaded platform accounts
               </p>
             </div>
 
@@ -678,23 +658,24 @@ export default function UserInstituteManagement() {
                   <ShieldCheck size={21} />
                 </div>
                 <span className="text-xs font-medium text-amber-600">
-                  Review needed
+                  Account review
                 </span>
               </div>
-              <p className="mt-5 text-sm text-slate-500">Pending Users</p>
+              <p className="mt-5 text-sm text-slate-500">Inactive Users</p>
               <h2 className="mt-1 text-3xl font-bold text-[#10265F]">
-                {pendingUsers}
+                {inactiveUsers}
               </h2>
               <p className="mt-2 text-xs text-slate-400">
-                Accounts awaiting review
+                Accounts currently disabled
               </p>
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Main section */}
           <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+            {/* Tabs */}
             <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:px-6">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
                     setActiveTab("Users");
@@ -746,7 +727,8 @@ export default function UserInstituteManagement() {
 
               <button
                 onClick={exportCSV}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
               >
                 <Download size={16} />
                 Export CSV
@@ -754,7 +736,7 @@ export default function UserInstituteManagement() {
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/60 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="relative">
                 <Search
                   size={17}
@@ -765,8 +747,8 @@ export default function UserInstituteManagement() {
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={
                     activeTab === "Users"
-                      ? "Search name, email, role..."
-                      : "Search institute, code, admin..."
+                      ? "Search name, email, phone..."
+                      : "Search institute or slug..."
                   }
                   className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#10265F] focus:ring-2 focus:ring-blue-100"
                 />
@@ -783,31 +765,8 @@ export default function UserInstituteManagement() {
                     onChange={(event) => setRoleFilter(event.target.value)}
                     className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm text-slate-600 outline-none focus:border-[#10265F]"
                   >
-                    {roles.map((role) => (
+                    {roleOptions.map((role) => (
                       <option key={role}>{role}</option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={15}
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                </div>
-              )}
-
-              {activeTab === "Users" && (
-                <div className="relative">
-                  <select
-                    value={instituteFilter}
-                    onChange={(event) =>
-                      setInstituteFilter(event.target.value)
-                    }
-                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-9 text-sm text-slate-600 outline-none focus:border-[#10265F]"
-                  >
-                    <option>All Institutes</option>
-                    {institutes.map((institute) => (
-                      <option key={institute.id} value={institute.name}>
-                        {institute.name}
-                      </option>
                     ))}
                   </select>
                   <ChevronDown
@@ -834,245 +793,226 @@ export default function UserInstituteManagement() {
               </div>
             </div>
 
-            {/* Users table */}
-            {activeTab === "Users" && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px] text-left">
-                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-5 py-4 font-semibold">User</th>
-                      <th className="px-5 py-4 font-semibold">Role</th>
-                      <th className="px-5 py-4 font-semibold">Institute</th>
-                      <th className="px-5 py-4 font-semibold">Joined</th>
-                      <th className="px-5 py-4 font-semibold">Status</th>
-                      <th className="px-5 py-4 text-right font-semibold">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredUsers.map((user) => (
-                      <tr
-                        key={user.id}
-                        className="transition hover:bg-slate-50/70"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#10265F]">
-                              {user.name
-                                .split(" ")
-                                .map((part) => part[0])
-                                .slice(0, 2)
-                                .join("")}
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-[#10265F]">
-                                {user.name}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {user.email}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700">
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {user.institute}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-slate-500">
-                          {user.joined}
-                        </td>
-                        <td className="px-5 py-4">
-                          <StatusBadge status={user.status} />
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              title="View details"
-                              onClick={() =>
-                                setShowDetails({ ...user, entityType: "user" })
-                              }
-                              className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-                            >
-                              <Eye size={17} />
-                            </button>
-                            <button
-                              title="Edit user"
-                              onClick={() => openEditUser(user)}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-[#10265F]"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              title={
-                                user.status === "Active"
-                                  ? "Deactivate account"
-                                  : "Activate account"
-                              }
-                              onClick={() => toggleUserStatus(user)}
-                              className={`rounded-lg p-2 ${
-                                user.status === "Active"
-                                  ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                  : "text-emerald-600 hover:bg-emerald-50"
-                              }`}
-                            >
-                              {user.status === "Active" ? (
-                                <Ban size={16} />
-                              ) : (
-                                <CheckCircle2 size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Loading */}
+            {loading ? (
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-slate-500">
+                <Loader2 size={30} className="animate-spin text-[#FF2454]" />
+                <p className="text-sm">Loading management data...</p>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Users table */}
+                {activeTab === "Users" && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[850px] text-left">
+                      <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
+                        <tr>
+                          <th className="px-5 py-4 font-semibold">User</th>
+                          <th className="px-5 py-4 font-semibold">Platform Role</th>
+                          <th className="px-5 py-4 font-semibold">Joined</th>
+                          <th className="px-5 py-4 font-semibold">Status</th>
+                          <th className="px-5 py-4 text-right font-semibold">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
-            {/* Institutes table */}
-            {activeTab === "Institutes" && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[950px] text-left">
-                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-5 py-4 font-semibold">Institute</th>
-                      <th className="px-5 py-4 font-semibold">Administrator</th>
-                      <th className="px-5 py-4 font-semibold">Plan</th>
-                      <th className="px-5 py-4 font-semibold">Users</th>
-                      <th className="px-5 py-4 font-semibold">Status</th>
-                      <th className="px-5 py-4 text-right font-semibold">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredInstitutes.map((institute) => (
-                      <tr
-                        key={institute.id}
-                        className="transition hover:bg-slate-50/70"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[#10265F]">
-                              <Building2 size={20} />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-[#10265F]">
-                                {institute.name}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {institute.code}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="text-sm font-medium text-slate-700">
-                            {institute.admin}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {institute.email}
-                          </p>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span
-                            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
-                              institute.plan === "Free"
-                                ? "bg-slate-100 text-slate-600"
-                                : "bg-purple-50 text-purple-700"
-                            }`}
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredUsers.map((user) => (
+                          <tr
+                            key={user.id}
+                            className="transition hover:bg-slate-50/70"
                           >
-                            {institute.plan}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="inline-flex items-center gap-2 text-sm text-slate-600">
-                            <Users size={15} className="text-slate-400" />
-                            {institute.users}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <StatusBadge status={institute.status} />
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              title="View details"
-                              onClick={() =>
-                                setShowDetails({
-                                  ...institute,
-                                  entityType: "institute",
-                                })
-                              }
-                              className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-                            >
-                              <Eye size={17} />
-                            </button>
-                            <button
-                              title="Edit institute"
-                              onClick={() => openEditInstitute(institute)}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-[#10265F]"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              title={
-                                institute.status === "Active"
-                                  ? "Deactivate institute"
-                                  : "Activate institute"
-                              }
-                              onClick={() => toggleInstituteStatus(institute)}
-                              className={`rounded-lg p-2 ${
-                                institute.status === "Active"
-                                  ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                  : "text-emerald-600 hover:bg-emerald-50"
-                              }`}
-                            >
-                              {institute.status === "Active" ? (
-                                <Ban size={16} />
-                              ) : (
-                                <CheckCircle2 size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-[#10265F]">
+                                  {user.name
+                                    .split(" ")
+                                    .map((part) => part[0])
+                                    .slice(0, 2)
+                                    .join("")
+                                    .toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-[#10265F]">
+                                    {user.name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {user.email}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
 
-            {((activeTab === "Users" && filteredUsers.length === 0) ||
-              (activeTab === "Institutes" &&
-                filteredInstitutes.length === 0)) && (
-              <div className="px-6 py-16 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                  {activeTab === "Users" ? (
-                    <Users size={24} />
-                  ) : (
-                    <Building2 size={24} />
-                  )}
-                </div>
-                <h3 className="mt-4 font-semibold text-[#10265F]">
-                  No {activeTab.toLowerCase()} found
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Try changing your search or filters.
-                </p>
-                <button
-                  onClick={resetFilters}
-                  className="mt-4 text-sm font-semibold text-[#FF2454] hover:underline"
-                >
-                  Clear filters
-                </button>
-              </div>
+                            <td className="px-5 py-4">
+                              <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700">
+                                {user.role}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4 text-sm text-slate-500">
+                              {user.joined}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <StatusBadge status={user.status} />
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  title="View details"
+                                  onClick={() => handleViewUser(user)}
+                                  className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  <Eye size={17} />
+                                </button>
+
+                                <button
+                                  title={
+                                    user.status === "Active"
+                                      ? "Deactivate account"
+                                      : "Activate account"
+                                  }
+                                  disabled={actionLoading}
+                                  onClick={() =>
+                                    handleToggleUserStatus(user)
+                                  }
+                                  className={`rounded-lg p-2 disabled:opacity-50 ${
+                                    user.status === "Active"
+                                      ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                      : "text-emerald-600 hover:bg-emerald-50"
+                                  }`}
+                                >
+                                  {user.status === "Active" ? (
+                                    <Ban size={16} />
+                                  ) : (
+                                    <CheckCircle2 size={16} />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Institutes table */}
+                {activeTab === "Institutes" && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-left">
+                      <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
+                        <tr>
+                          <th className="px-5 py-4 font-semibold">Institute</th>
+                          <th className="px-5 py-4 font-semibold">Memberships</th>
+                          <th className="px-5 py-4 font-semibold">Created</th>
+                          <th className="px-5 py-4 font-semibold">Status</th>
+                          <th className="px-5 py-4 text-right font-semibold">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredInstitutes.map((institute) => (
+                          <tr
+                            key={institute.id}
+                            className="transition hover:bg-slate-50/70"
+                          >
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#10265F]">
+                                  <Building2 size={20} />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-[#10265F]">
+                                    {institute.name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {institute.code}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span className="inline-flex items-center gap-2 text-sm text-slate-600">
+                                <Users size={15} className="text-slate-400" />
+                                {institute.users}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4 text-sm text-slate-500">
+                              {institute.joined}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <StatusBadge status={institute.status} />
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  title="View details and members"
+                                  onClick={() =>
+                                    handleViewInstitute(institute)
+                                  }
+                                  className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  <Eye size={17} />
+                                </button>
+
+                                <button
+                                  title="Edit institute"
+                                  onClick={() =>
+                                    openEditInstitute(institute)
+                                  }
+                                  className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-[#10265F]"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {((activeTab === "Users" &&
+                  filteredUsers.length === 0) ||
+                  (activeTab === "Institutes" &&
+                    filteredInstitutes.length === 0)) && (
+                  <div className="px-6 py-16 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                      {activeTab === "Users" ? (
+                        <Users size={24} />
+                      ) : (
+                        <Building2 size={24} />
+                      )}
+                    </div>
+
+                    <h3 className="mt-4 font-semibold text-[#10265F]">
+                      No {activeTab.toLowerCase()} found
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Try changing your search or filters.
+                    </p>
+
+                    <button
+                      onClick={resetFilters}
+                      className="mt-4 text-sm font-semibold text-[#FF2454] hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-4 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
@@ -1089,23 +1029,17 @@ export default function UserInstituteManagement() {
         </main>
       </div>
 
-      {/* Add/edit modal */}
+      {/* Add / edit institute modal */}
       {showModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm">
           <div className="my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
               <div>
                 <h2 className="text-lg font-bold text-[#10265F]">
-                  {editingInstitute
-                    ? editingId
-                      ? "Edit Institute"
-                      : "Add Institute"
-                    : editingId
-                      ? "Edit User"
-                      : "Add New User"}
+                  {editingId ? "Edit Institute" : "Add Institute"}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Enter the account information below.
+                  Enter the institute name and unique URL slug.
                 </p>
               </div>
 
@@ -1118,300 +1052,83 @@ export default function UserInstituteManagement() {
               </button>
             </div>
 
-            {editingInstitute ? (
-              <form
-                onSubmit={handleSaveInstitute}
-                className="space-y-4 p-5 sm:p-6"
-              >
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Institute Name *
-                  </label>
-                  <input
-                    required
-                    value={instituteForm.name}
-                    onChange={(event) =>
-                      setInstituteForm({
-                        ...instituteForm,
-                        name: event.target.value,
-                      })
-                    }
-                    placeholder="Enter institute name"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                  />
-                </div>
+            <form
+              onSubmit={handleSaveInstitute}
+              className="space-y-4 p-5 sm:p-6"
+            >
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Institute Name *
+                </label>
+                <input
+                  required
+                  minLength={2}
+                  maxLength={150}
+                  value={instituteForm.name}
+                  onChange={(event) =>
+                    setInstituteForm((previous) => ({
+                      ...previous,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter institute name"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
+                />
+              </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Institute Code *
-                    </label>
-                    <input
-                      required
-                      value={instituteForm.code}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          code: event.target.value,
-                        })
-                      }
-                      placeholder="INST-005"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Institute Slug *
+                </label>
+                <input
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={instituteForm.code}
+                  onChange={(event) =>
+                    setInstituteForm((previous) => ({
+                      ...previous,
+                      code: event.target.value
+                        .toLowerCase()
+                        .replace(/\s+/g, "-"),
+                    }))
+                  }
+                  placeholder="e.g. rit-college"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Use lowercase letters, numbers and hyphens only.
+                </p>
+              </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Plan
-                    </label>
-                    <select
-                      value={instituteForm.plan}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          plan: event.target.value,
-                        })
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#10265F]"
-                    >
-                      <option>Free</option>
-                      <option>Institute 6M</option>
-                      <option>Institute 12M</option>
-                      <option>Pro</option>
-                    </select>
-                  </div>
+              <div className="rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-700">
+                Plan, administrator, member count and institute status are
+                managed separately. This form updates only the fields
+                supported by the organization API.
+              </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Administrator Name *
-                    </label>
-                    <input
-                      required
-                      value={instituteForm.admin}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          admin: event.target.value,
-                        })
-                      }
-                      placeholder="Admin name"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  disabled={actionLoading}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Administrator Email *
-                    </label>
-                    <input
-                      required
-                      type="email"
-                      value={instituteForm.email}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          email: event.target.value,
-                        })
-                      }
-                      placeholder="admin@institute.com"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Current User Count
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={instituteForm.users}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          users: Number(event.target.value),
-                        })
-                      }
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Account Status
-                    </label>
-                    <select
-                      value={instituteForm.status}
-                      onChange={(event) =>
-                        setInstituteForm({
-                          ...instituteForm,
-                          status: event.target.value,
-                        })
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#10265F]"
-                    >
-                      <option>Active</option>
-                      <option>Inactive</option>
-                      <option>Pending</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#FF2454] px-6 py-3 text-sm font-semibold text-white hover:bg-[#e91d49]"
-                  >
-                    {editingId ? "Save Changes" : "Create Institute"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleSaveUser} className="space-y-4 p-5 sm:p-6">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Full Name *
-                  </label>
-                  <input
-                    required
-                    value={userForm.name}
-                    onChange={(event) =>
-                      setUserForm({ ...userForm, name: event.target.value })
-                    }
-                    placeholder="Enter full name"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Email Address *
-                    </label>
-                    <input
-                      required
-                      type="email"
-                      value={userForm.email}
-                      onChange={(event) =>
-                        setUserForm({ ...userForm, email: event.target.value })
-                      }
-                      placeholder="name@example.com"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Phone Number
-                    </label>
-                    <input
-                      value={userForm.phone}
-                      onChange={(event) =>
-                        setUserForm({ ...userForm, phone: event.target.value })
-                      }
-                      placeholder="+91"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Role
-                    </label>
-                    <select
-                      value={userForm.role}
-                      onChange={(event) =>
-                        setUserForm({ ...userForm, role: event.target.value })
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#10265F]"
-                    >
-                      {roles.slice(1).map((role) => (
-                        <option key={role}>{role}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Institute
-                    </label>
-                    <select
-                      value={userForm.institute}
-                      onChange={(event) =>
-                        setUserForm({
-                          ...userForm,
-                          institute: event.target.value,
-                        })
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#10265F]"
-                    >
-                      {institutes.map((institute) => (
-                        <option key={institute.id} value={institute.name}>
-                          {institute.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Location
-                    </label>
-                    <input
-                      value={userForm.location}
-                      onChange={(event) =>
-                        setUserForm({
-                          ...userForm,
-                          location: event.target.value,
-                        })
-                      }
-                      placeholder="City, State"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#10265F]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Account Status
-                    </label>
-                    <select
-                      value={userForm.status}
-                      onChange={(event) =>
-                        setUserForm({ ...userForm, status: event.target.value })
-                      }
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#10265F]"
-                    >
-                      <option>Active</option>
-                      <option>Inactive</option>
-                      <option>Pending</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#FF2454] px-6 py-3 text-sm font-semibold text-white hover:bg-[#e91d49]"
-                  >
-                    {editingId ? "Save Changes" : "Create User"}
-                  </button>
-                </div>
-              </form>
-            )}
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-6 py-3 text-sm font-semibold text-white hover:bg-[#e91d49] disabled:opacity-60"
+                >
+                  {actionLoading && (
+                    <Loader2 size={16} className="animate-spin" />
+                  )}
+                  {editingId ? "Save Changes" : "Create Institute"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1419,13 +1136,14 @@ export default function UserInstituteManagement() {
       {/* Details modal */}
       {showDetails && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="my-auto max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 className="font-bold text-[#10265F]">
                 {showDetails.entityType === "user"
                   ? "User Details"
                   : "Institute Details"}
               </h2>
+
               <button
                 onClick={() => setShowDetails(null)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
@@ -1437,15 +1155,16 @@ export default function UserInstituteManagement() {
 
             <div className="p-6">
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#10265F]">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#10265F]">
                   {showDetails.entityType === "user" ? (
                     <Users size={25} />
                   ) : (
                     <Building2 size={25} />
                   )}
                 </div>
+
                 <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-[#10265F]">
+                  <h3 className="break-words text-lg font-bold text-[#10265F]">
                     {showDetails.name}
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
@@ -1455,19 +1174,20 @@ export default function UserInstituteManagement() {
               </div>
 
               <div className="mt-5 space-y-3">
-                <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                  <Mail size={17} className="mt-0.5 text-slate-400" />
-                  <div>
-                    <p className="text-xs text-slate-400">Email</p>
-                    <p className="mt-1 break-all text-sm font-medium text-slate-700">
-                      {showDetails.email}
-                    </p>
+                {showDetails.email && (
+                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
+                    <Mail size={17} className="mt-0.5 shrink-0 text-slate-400" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-400">Email</p>
+                      <p className="mt-1 break-all text-sm font-medium text-slate-700">
+                        {showDetails.email}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {showDetails.phone && (
                   <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                    <Phone size={17} className="mt-0.5 text-slate-400" />
                     <div>
                       <p className="text-xs text-slate-400">Phone</p>
                       <p className="mt-1 text-sm font-medium text-slate-700">
@@ -1477,46 +1197,68 @@ export default function UserInstituteManagement() {
                   </div>
                 )}
 
-                {showDetails.location && (
-                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                    <MapPin size={17} className="mt-0.5 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-400">Location</p>
-                      <p className="mt-1 text-sm font-medium text-slate-700">
-                        {showDetails.location}
+                {showDetails.entityType === "institute" && (
+                  <>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-400">Institute slug</p>
+                      <p className="mt-1 break-all text-sm font-medium text-slate-700">
+                        {showDetails.code}
                       </p>
                     </div>
-                  </div>
-                )}
 
-                {showDetails.institute && (
-                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                    <Building2 size={17} className="mt-0.5 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-400">Institute</p>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-400">Membership count</p>
                       <p className="mt-1 text-sm font-medium text-slate-700">
-                        {showDetails.institute}
+                        {showDetails.memberCount ?? showDetails.users}
                       </p>
                     </div>
-                  </div>
-                )}
 
-                {showDetails.plan && (
-                  <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                    <ShieldCheck size={17} className="mt-0.5 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-400">Subscription Plan</p>
-                      <p className="mt-1 text-sm font-medium text-slate-700">
-                        {showDetails.plan}
-                      </p>
-                    </div>
-                  </div>
+                    {showDetails.members?.length > 0 && (
+                      <div className="rounded-xl border border-slate-100 p-3">
+                        <h4 className="mb-3 text-sm font-semibold text-[#10265F]">
+                          Institute Members
+                        </h4>
+
+                        <div className="max-h-48 space-y-3 overflow-y-auto">
+                          {showDetails.members.map((membership) => (
+                            <div
+                              key={membership.id}
+                              className="flex items-center justify-between gap-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-700">
+                                  {membership.user?.profile?.name ||
+                                    membership.user?.email ||
+                                    "Member"}
+                                </p>
+                                <p className="truncate text-xs text-slate-400">
+                                  {membership.user?.email}
+                                </p>
+                              </div>
+
+                              <div className="shrink-0 text-right">
+                                <p className="text-xs font-medium text-blue-700">
+                                  {membership.role}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {normalizeStatus(membership.status)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                  <CalendarDays size={17} className="mt-0.5 text-slate-400" />
+                  <CalendarDays
+                    size={17}
+                    className="mt-0.5 shrink-0 text-slate-400"
+                  />
                   <div>
-                    <p className="text-xs text-slate-400">Joined</p>
+                    <p className="text-xs text-slate-400">Joined / Created</p>
                     <p className="mt-1 text-sm font-medium text-slate-700">
                       {showDetails.joined}
                     </p>
@@ -1525,7 +1267,9 @@ export default function UserInstituteManagement() {
 
                 <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
                   <span className="text-sm font-medium text-slate-600">
-                    Account Status
+                    {showDetails.entityType === "user"
+                      ? "Account Status"
+                      : "Institute Status"}
                   </span>
                   <StatusBadge status={showDetails.status} />
                 </div>
@@ -1544,12 +1288,12 @@ export default function UserInstituteManagement() {
 
       {/* Toast */}
       {notice && (
-        <div className="fixed bottom-5 right-5 z-[80] flex max-w-sm items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-[#10265F] shadow-lg">
+        <div className="fixed bottom-5 right-5 z-[80] flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-[#10265F] shadow-lg sm:max-w-sm">
           <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
-          <span>{notice}</span>
+          <span className="break-words">{notice}</span>
           <button
             onClick={() => setNotice("")}
-            className="ml-2 text-slate-400 hover:text-slate-700"
+            className="ml-2 shrink-0 text-slate-400 hover:text-slate-700"
             aria-label="Dismiss notification"
           >
             <X size={16} />

@@ -49,7 +49,10 @@ export function AuthProvider({ children }) {
     authService
       .refresh()
       .then(({ data }) => {
-        if (!cancelled) setUser(normalizeUser(data.user));
+        if (!cancelled) {
+          setAccessToken(data.accessToken);
+          setUser(normalizeUser(data.user));
+        }
       })
       .catch(() => {
         // No valid cookie: the visitor is simply logged out.
@@ -156,22 +159,40 @@ export function AuthProvider({ children }) {
   // useMemo: the value changes only when something really changed,
   // so pages that use useAuth() do not re-render for no reason.
   const value = useMemo(
-    () => ({
-      user,
-      role: user?.platformRole || "GUEST",
-      isAuthenticated: Boolean(user),
-      loading,
-      login,
-      verifyLoginOtp,
-      googleLogin,
-      logout,
-    }),
-    [user, loading, login, verifyLoginOtp, googleLogin, logout]
-  );
+  () => ({
+    user,
+    role: user?.platformRole || "GUEST",
+    isAuthenticated: Boolean(user),
+    loading,
+    login,
+    verifyLoginOtp,
+    googleLogin,
+    logout,
+  }),
+  [user, loading, login, verifyLoginOtp, googleLogin, logout]
+);
 
+// Do not mount application pages until session restoration finishes.
+if (loading) {
   return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      Restoring session...
+    </div>
   );
+}
+
+return (
+  <AuthContext.Provider value={value}>
+    {children}
+  </AuthContext.Provider>
+);
 }
 
 export default AuthContext;
