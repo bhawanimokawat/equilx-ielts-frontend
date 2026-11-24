@@ -1,698 +1,1071 @@
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Plus,
-  Search,
-  ClipboardList,
-  BookOpen,
-  FileText,
-  Users,
-  Clock,
-  CheckCircle2,
-  CalendarDays,
-  X,
-  ChevronDown,
-  MoreHorizontal,
-  Eye,
-  Trash2,
-  Filter,
-  Target,
-  Layers,
-  Send,
-  AlertCircle,
+  Plus, Search, ClipboardList, BookOpen, FileText, Users,
+  Clock, CheckCircle2, CalendarDays, X, ChevronDown,
+  MoreHorizontal, Eye, Trash2, Filter, Target, Layers,
+  Send, AlertCircle, RefreshCw, LoaderCircle, Pencil,
+  Save, Ban, Lock, UserRound, ArrowUpRight,
 } from "lucide-react";
+
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import assignmentService from "../../services/Trainer/assignmentService.js";
 
-const initialAssignments = [
-  {
-    id: 1,
-    title: "IELTS Reading Mock Test 01",
-    type: "Mock Test",
-    target: "Morning Batch",
-    dueDate: "2026-10-30",
-    assignedDate: "2026-10-24",
-    students: 18,
-    completed: 12,
-    status: "In Progress",
-    description: "Complete all three reading passages within 60 minutes.",
-  },
-  {
-    id: 2,
-    title: "Writing Task 2 - Essay Practice",
-    type: "Practice Test",
-    target: "All Students",
-    dueDate: "2026-10-29",
-    assignedDate: "2026-10-25",
-    students: 56,
-    completed: 34,
-    status: "In Progress",
-    description: "Write an essay of at least 250 words.",
-  },
-  {
-    id: 3,
-    title: "IELTS Listening Practice Set",
-    type: "Practice Test",
-    target: "Evening Batch",
-    dueDate: "2026-11-02",
-    assignedDate: "2026-10-26",
-    students: 20,
-    completed: 20,
-    status: "Completed",
-    description: "Complete the four listening sections.",
-  },
-  {
-    id: 4,
-    title: "IELTS Speaking Preparation Guide",
-    type: "Study Material",
-    target: "Weekend Batch",
-    dueDate: "2026-11-05",
-    assignedDate: "2026-10-27",
-    students: 18,
-    completed: 5,
-    status: "In Progress",
-    description: "Review the speaking guide before your next session.",
-  },
-  {
-    id: 5,
-    title: "Full IELTS Mock Test 02",
-    type: "Mock Test",
-    target: "Aarav Sharma",
-    dueDate: "2026-10-28",
-    assignedDate: "2026-10-23",
-    students: 1,
-    completed: 0,
-    status: "Overdue",
-    description: "Complete the full IELTS mock test.",
-  },
-];
-
-const initialBatches = [
-  "Morning Batch",
-  "Evening Batch",
-  "Weekend Batch",
-];
-
-const assignmentTypes = ["Mock Test", "Practice Test", "Study Material"];
-
-const typeStyles = {
-  "Mock Test":
-    "bg-violet-50 text-violet-700 dark:bg-[#30263d] dark:text-violet-300",
-  "Practice Test":
-    "bg-blue-50 text-blue-700 dark:bg-[#202b3b] dark:text-blue-300",
-  "Study Material":
-    "bg-orange-50 text-orange-700 dark:bg-[#3b3020] dark:text-orange-300",
-};
+const TYPES = ["Mock Test", "Practice Test", "Study Material"];
 
 const inputClass =
-  "w-full rounded-xl border border-gray-200 dark:border-[#3b3441] bg-white dark:bg-[#19171e] px-3.5 py-3 text-sm text-gray-700 dark:text-white outline-none transition placeholder:text-gray-400 dark:placeholder:text-[#91899b] focus:border-blue-400 focus:ring-2 focus:ring-blue-50 dark:focus:ring-[#202b3b]";
+  "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-3 " +
+  "text-sm outline-none transition focus:border-blue-400 " +
+  "focus:ring-2 focus:ring-blue-50 dark:border-[#3b3441] " +
+  "dark:bg-[#19171e] dark:text-white dark:focus:ring-[#202b3b]";
 
-const today = new Date().toLocaleDateString("en-CA");
+const muted = "text-gray-500 dark:text-[#b0a5bd]";
+const border = "border-gray-100 dark:border-[#3b3441]";
+const pink = "bg-[#FF2454] text-white hover:bg-[#e91d49]";
+
+const EMPTY_FORM = {
+  title: "",
+  type: "Mock Test",
+  targetType: "Batch",
+  batchId: "",
+  studentIds: "",
+  testVersionIds: "",
+  dueDate: "",
+  description: "",
+};
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function HoverCard({ children, onClick, className = "" }) {
+  const surface =
+    `relative z-10 flex h-full w-full min-w-0 flex-col rounded-2xl ` +
+    `border ${border} bg-white text-left shadow-sm transition-transform ` +
+    `duration-300 group-hover:-translate-y-1.5 dark:bg-[#211e27]`;
+
+  return (
+    <div className={`group relative isolate h-full min-w-0 pb-2 ${className}`}>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 top-2
+          rounded-2xl bg-pink-100 opacity-0 transition-opacity
+          duration-300 group-hover:opacity-100 dark:bg-[#4A2538]"
+      />
+      {onClick ? (
+        <button type="button" onClick={onClick} className={surface}>
+          {children}
+        </button>
+      ) : (
+        <div className={surface}>{children}</div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ title, value, subtitle, icon: Icon, color }) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600 dark:bg-[#202b3b]",
+    purple: "bg-purple-50 text-purple-600 dark:bg-[#30263d]",
+    green: "bg-emerald-50 text-emerald-600 dark:bg-[#1f352e]",
+    orange: "bg-orange-50 text-orange-600 dark:bg-[#3b3020]",
+  };
+
+  return (
+    <HoverCard>
+      <div className="flex h-full min-h-[225px] flex-col p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className={`flex h-12 w-12 items-center justify-center
+              rounded-2xl ${colors[color]}`}
+          >
+            <Icon size={23} />
+          </div>
+          <ArrowUpRight size={18} className={muted} />
+        </div>
+        <p className={`mt-5 text-sm font-semibold ${muted}`}>{title}</p>
+        <p className="mt-3 text-3xl font-extrabold">{value}</p>
+        <p className={`mt-auto pt-5 text-xs leading-5 ${muted}`}>
+          {subtitle}
+        </p>
+      </div>
+    </HoverCard>
+  );
+}
+
+function Modal({ title, children, onClose, wide = false }) {
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center
+        justify-center bg-black/55 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl
+          border ${border} bg-white shadow-2xl dark:bg-[#211e27]
+          ${wide ? "max-w-3xl" : "max-w-xl"}`}
+      >
+        <div
+          className={`sticky top-0 z-10 flex items-center justify-between
+            border-b ${border} bg-white px-5 py-4 dark:bg-[#211e27]`}
+        >
+          <h2 className="text-lg font-bold">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-2 hover:bg-gray-100
+              dark:hover:bg-[#302b37]"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-5 sm:p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, hint, children }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold">{label}</span>
+      {children}
+      {hint && (
+        <span className={`mt-1.5 block text-xs leading-5 ${muted}`}>
+          {hint}
+        </span>
+      )}
+    </label>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+}
+
+function statusOf(item) {
+  const status = item.status || "DRAFT";
+  if (
+    status === "PUBLISHED" &&
+    item.dueAt &&
+    new Date(item.dueAt).getTime() < Date.now() &&
+    item.assignedCount !== null &&
+    item.completedCount !== null &&
+    item.completedCount < item.assignedCount
+  ) {
+    return "OVERDUE";
+  }
+  return status;
+}
+
+function statusStyle(status) {
+  if (status === "PUBLISHED")
+    return "bg-blue-50 text-blue-700 dark:bg-[#202b3b]";
+  if (status === "OVERDUE")
+    return "bg-red-50 text-red-700 dark:bg-[#39232f]";
+  if (status === "CLOSED")
+    return "bg-emerald-50 text-emerald-700 dark:bg-[#1f352e]";
+  if (status === "CANCELLED")
+    return "bg-gray-100 text-gray-600 dark:bg-[#393441]";
+  return "bg-orange-50 text-orange-700 dark:bg-[#3b3020]";
+}
+
+function ProgressBar({ completed, total }) {
+  const known = completed !== null && total !== null;
+  const value =
+    known && total > 0
+      ? Math.round((completed / total) * 100)
+      : known && total === 0
+        ? 0
+        : null;
+
+  return (
+    <div className="min-w-[130px]">
+      <div className="mb-2 flex justify-between gap-2 text-xs">
+        <span className="font-semibold">
+          {known ? `${completed}/${total}` : "—"}
+        </span>
+        <span className={muted}>
+          {value === null ? "—" : `${value}%`}
+        </span>
+      </div>
+      <div
+        className="h-1.5 overflow-hidden rounded-full
+          bg-gray-100 dark:bg-[#393441]"
+      >
+        {value !== null && (
+          <div
+            className="h-full rounded-full bg-[#FF2454]"
+            style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div
+      className={`flex flex-col gap-1 border-b ${border}
+        py-3 last:border-0 sm:flex-row sm:justify-between sm:gap-4`}
+    >
+      <span className={`text-sm ${muted}`}>{label}</span>
+      <span className="break-words text-sm font-semibold">
+        {value ?? "—"}
+      </span>
+    </div>
+  );
+}
 
 export default function Assignments() {
-  const [assignments, setAssignments] = useState(initialAssignments);
-  const [batches] = useState(initialBatches);
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("All Types");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [showModal, setShowModal] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [menuId, setMenuId] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [complete, setComplete] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({
-    title: "",
-    type: "Mock Test",
-    targetType: "Batch",
-    target: "Morning Batch",
-    dueDate: "",
-    description: "",
-  });
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All Types");
+  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const getStatus = (assignment) => {
-    if (assignment.completed >= assignment.students) return "Completed";
-    if (assignment.dueDate < today) return "Overdue";
-    return "In Progress";
-  };
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [menuId, setMenuId] = useState(null);
 
-  const filteredAssignments = useMemo(() => {
-    return assignments.filter((assignment) => {
-      const query = search.toLowerCase().trim();
+  const [form, setForm] = useState(EMPTY_FORM);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await assignmentService.getPageData();
+      setAssignments(result.assignments);
+      setBatches(result.batches);
+      setComplete(result.complete);
+
+      if (result.errors.length) {
+        setError(result.errors.join(" | "));
+      }
+    } catch (err) {
+      setAssignments([]);
+      setBatches([]);
+      setComplete(false);
+      setError(err.message || "Unable to load assignments.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return assignments.filter((item) => {
       const matchesSearch =
-        assignment.title.toLowerCase().includes(query) ||
-        assignment.target.toLowerCase().includes(query) ||
-        assignment.type.toLowerCase().includes(query);
+        !q ||
+        [item.title, item.status, item.createdBy?.email]
+          .some((value) =>
+            String(value || "").toLowerCase().includes(q)
+          );
 
       const matchesType =
-        typeFilter === "All Types" || assignment.type === typeFilter;
+        typeFilter === "All Types" ||
+        (item.category || "Uncategorized") === typeFilter;
 
       const matchesStatus =
         statusFilter === "All Status" ||
-        getStatus(assignment) === statusFilter;
+        statusOf(item) === statusFilter;
 
       return matchesSearch && matchesType && matchesStatus;
     });
   }, [assignments, search, typeFilter, statusFilter]);
 
-  const totalAssigned = assignments.reduce(
-    (total, item) => total + item.students,
-    0
+  useEffect(() => {
+    setPage(1);
+  }, [search, typeFilter, statusFilter, pageSize]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filtered.length / pageSize)
+  );
+  const currentPage = Math.min(page, pageCount);
+  const visible = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
 
-  const totalCompleted = assignments.reduce(
-    (total, item) => total + item.completed,
-    0
-  );
+  const countsKnown =
+    complete &&
+    assignments.every(
+      (a) => a.assignedCount !== null && a.completedCount !== null
+    );
 
-  const completedCount = assignments.filter(
-    (item) => getStatus(item) === "Completed"
-  ).length;
+  const assigned = countsKnown
+    ? assignments.reduce((sum, a) => sum + a.assignedCount, 0)
+    : null;
 
-  const overdueCount = assignments.filter(
-    (item) => getStatus(item) === "Overdue"
-  ).length;
+  const completed = countsKnown
+    ? assignments.reduce((sum, a) => sum + a.completedCount, 0)
+    : null;
 
-  const updateForm = (event) => {
+  const overdue = countsKnown
+    ? assignments.filter((a) => statusOf(a) === "OVERDUE").length
+    : null;
+
+  const changeForm = (event) => {
     const { name, value } = event.target;
-
-    setForm((previous) => {
-      const next = { ...previous, [name]: value };
-
-      if (name === "targetType") {
-        next.target =
-          value === "Batch"
-            ? batches[0]
-            : value === "All Students"
-              ? "All Students"
-              : "";
-      }
-
-      return next;
-    });
-
+    setForm((previous) => ({ ...previous, [name]: value }));
     setError("");
-    setSuccess("");
   };
 
-  const handleCreateAssignment = (event) => {
-    event.preventDefault();
+  const closeModals = useCallback(() => {
+    if (saving) return;
+    setShowModal(false);
+    setEditing(null);
+    setSelectedAssignment(null);
+    setDetail(null);
+    setError("");
+  }, [saving]);
 
-    const title = form.title.trim();
-
-    if (!title || !form.dueDate || !form.target) {
-      setError("Please fill in all required fields.");
-      return;
-    }
-
-    if (form.dueDate < today) {
-      setError("Due date cannot be in the past.");
-      return;
-    }
-
-    let target = form.target;
-    let studentCount = 1;
-
-    if (form.targetType === "All Students") {
-      target = "All Students";
-      studentCount = 56;
-    } else if (form.targetType === "Batch") {
-      studentCount =
-        target === "Morning Batch"
-          ? 18
-          : target === "Evening Batch"
-            ? 20
-            : 18;
-    }
-
-    const newAssignment = {
-      id: Date.now(),
-      title,
-      type: form.type,
-      target,
-      dueDate: form.dueDate,
-      assignedDate: today,
-      students: studentCount,
-      completed: 0,
-      status: "In Progress",
-      description: form.description.trim(),
-    };
-
-    setAssignments((previous) => [newAssignment, ...previous]);
-    setSearch("");
-    setTypeFilter("All Types");
-    setStatusFilter("All Status");
+  const openCreate = () => {
+    setEditing(null);
     setForm({
-      title: "",
-      type: "Mock Test",
-      targetType: "Batch",
-      target: batches[0],
-      dueDate: "",
+      ...EMPTY_FORM,
+      batchId: batches[0]?.id || "",
+    });
+    setError("");
+    setShowModal(true);
+  };
+
+  const openEdit = (item) => {
+    setMenuId(null);
+    setEditing(item);
+    setForm({
+      ...EMPTY_FORM,
+      title: item.title || "",
+      dueDate: item.dueAt
+        ? new Date(item.dueAt).toISOString().slice(0, 16)
+        : "",
       description: "",
     });
     setError("");
-    setSuccess("Assignment added to the demo list.");
-    setShowModal(false);
+    setShowModal(true);
   };
 
-  const removeAssignment = (id) => {
-    if (!window.confirm("Remove this assignment from the demo list?")) return;
-
-    setAssignments((previous) =>
-      previous.filter((assignment) => assignment.id !== id)
-    );
-
+  const openDetails = async (item) => {
     setMenuId(null);
+    setSelectedAssignment(item);
+    setDetail(null);
+    setDetailLoading(true);
+    setError("");
 
-    if (selectedAssignment?.id === id) {
-      setSelectedAssignment(null);
+    try {
+      const [assignmentResult, targetResult, submissionResult] =
+        await Promise.allSettled([
+          assignmentService.getAssignment(item.id),
+          assignmentService.getTargets(item.id),
+          assignmentService.getSubmissions(item.id),
+        ]);
+
+      setDetail({
+        assignment:
+          assignmentResult.status === "fulfilled"
+            ? assignmentResult.value
+            : item,
+        targets:
+          targetResult.status === "fulfilled"
+            ? targetResult.value.targets || []
+            : item.targets || [],
+        submissions:
+          submissionResult.status === "fulfilled"
+            ? submissionResult.value.submissions || []
+            : [],
+        targetsTotal:
+          targetResult.status === "fulfilled"
+            ? targetResult.value.pagination?.total ?? null
+            : item.assignedCount,
+        submissionsTotal:
+          submissionResult.status === "fulfilled"
+            ? submissionResult.value.pagination?.total ?? null
+            : null,
+        partial:
+          [assignmentResult, targetResult, submissionResult].some(
+            (r) => r.status === "rejected"
+          ),
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
+  const runAction = async (action, message) => {
+    setSaving(true);
     setError("");
+    setSuccess("");
+
+    try {
+      await action();
+      await load();
+      setSuccess(message);
+      setShowModal(false);
+      setEditing(null);
+      setSelectedAssignment(null);
+      setDetail(null);
+      setMenuId(null);
+      return true;
+    } catch (err) {
+      setError(err.message || "Action failed.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
   };
 
+  const saveAssignment = async (event) => {
+    event.preventDefault();
+
+    const title = form.title.trim();
+    if (title.length < 3) {
+      setError("Title must contain at least 3 characters.");
+      return;
+    }
+
+    const dueAt = form.dueDate
+      ? new Date(form.dueDate).toISOString()
+      : null;
+
+    if (editing) {
+      await runAction(
+        () =>
+          assignmentService.updateAssignment(editing.id, {
+            title,
+            instructions: form.description.trim() || null,
+            dueAt,
+          }),
+        "Assignment updated successfully."
+      );
+      return;
+    }
+
+    const testVersionIds = form.testVersionIds
+      .split(/[\s,]+/)
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (!testVersionIds.length || testVersionIds.some((id) => !UUID.test(id))) {
+      setError("Enter at least one valid Test Version UUID.");
+      return;
+    }
+
+    const studentIds = form.studentIds
+      .split(/[\s,]+/)
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (studentIds.some((id) => !UUID.test(id))) {
+      setError("Every student ID must be a valid UUID.");
+      return;
+    }
+
+    let batchIds = [];
+    let directUserIds = [];
+
+    if (form.targetType === "Batch") {
+      if (!form.batchId) {
+        setError("Please select a batch.");
+        return;
+      }
+      batchIds = [form.batchId];
+    } else if (form.targetType === "Student") {
+      if (!studentIds.length) {
+        setError("Please enter at least one student UUID.");
+        return;
+      }
+      directUserIds = studentIds;
+    } else {
+      setError(
+        "All Students targeting needs a backend-supported recipient selection. Select Batch or Student."
+      );
+      return;
+    }
+
+    const payload = {
+      title,
+      instructions: form.description.trim() || null,
+      dueAt,
+      contents: testVersionIds.map((testVersionId, index) => ({
+        testVersionId,
+        position: index + 1,
+      })),
+      directUserIds,
+      batchIds,
+    };
+
+    await runAction(
+      () => assignmentService.createAssignment(payload),
+      "Assignment created successfully."
+    );
+  };
+
+  const changeStatus = async (item, action) => {
+    setMenuId(null);
+
+    const descriptions = {
+      publish: "Publish this assignment?",
+      close: "Close this assignment?",
+      cancel: "Cancel this assignment?",
+      delete: "Delete this assignment?",
+    };
+
+    if (!window.confirm(descriptions[action])) return;
+
+    const actions = {
+      publish: () => assignmentService.publishAssignment(item.id),
+      close: () => assignmentService.closeAssignment(item.id),
+      cancel: () => assignmentService.cancelAssignment(item.id),
+      delete: () => assignmentService.deleteAssignment(item.id),
+    };
+
+    await runAction(
+      actions[action],
+      `Assignment ${action === "delete" ? "deleted" : action + "d"} successfully.`
+    );
+  };
+
+  const categoryCount = (type) =>
+    assignments.filter((item) => item.category === type).length;
+
+  const categoryCards = [
+    {
+      title: "Mock Test",
+      description: "Full-length IELTS assessments",
+      icon: Target,
+      color: "bg-violet-50 text-violet-600 dark:bg-[#30263d]",
+    },
+    {
+      title: "Practice Test",
+      description: "Skill-wise practice activities",
+      icon: ClipboardList,
+      color: "bg-blue-50 text-blue-600 dark:bg-[#202b3b]",
+    },
+    {
+      title: "Study Material",
+      description: "Guides, notes and learning resources",
+      icon: BookOpen,
+      color: "bg-orange-50 text-orange-600 dark:bg-[#3b3020]",
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#F5F7FF] text-[#10265F] transition-colors duration-300 dark:bg-[#17151B] dark:text-white">
+    <div
+      className="min-h-screen overflow-x-hidden bg-[#F5F7FF]
+        text-[#10265F] transition-colors duration-300
+        dark:bg-[#17151B] dark:text-white"
+    >
       <Sidebar />
 
       <div className="min-w-0 lg:ml-[260px]">
         <Navbar />
 
         <main className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
-          {/* Page heading */}
-          <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          {/* HEADER */}
+          <section
+            className="flex flex-col justify-between gap-4
+              sm:flex-row sm:items-center"
+          >
             <div>
-              <p className="mb-2 text-sm text-gray-500 dark:text-[#b0a5bd]">
+              <p className={`mb-2 text-sm ${muted}`}>
                 Trainer Portal / Assignments & Batches
               </p>
-
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              <h1 className="text-2xl font-bold sm:text-3xl">
                 Assignments & Batches
               </h1>
-
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-[#b0a5bd]">
-                Assign mock tests, practice tests and study materials to
-                individual students, batches or all students.
+              <p className={`mt-2 max-w-2xl text-sm leading-6 ${muted}`}>
+                Assign tests and learning content to students and batches,
+                and monitor their completion.
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setForm({
-                  title: "",
-                  type: "Mock Test",
-                  targetType: "Batch",
-                  target: batches[0],
-                  dueDate: "",
-                  description: "",
-                });
-                setShowModal(true);
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#e91d49]"
-            >
-              <Plus size={19} />
-              Create Assignment
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={load}
+                disabled={loading}
+                className={`flex items-center gap-2 rounded-xl border
+                  ${border} bg-white px-4 py-3 text-sm font-semibold
+                  disabled:opacity-50 dark:bg-[#211e27]`}
+              >
+                <RefreshCw
+                  size={17}
+                  className={loading ? "animate-spin" : ""}
+                />
+                Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={openCreate}
+                className={`flex items-center gap-2 rounded-xl
+                  px-5 py-3 text-sm font-semibold ${pink}`}
+              >
+                <Plus size={19} />
+                Create Assignment
+              </button>
+            </div>
           </section>
 
+          {/* FEEDBACK */}
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-xl border
+                border-red-200 bg-red-50 p-4 text-sm text-red-700
+                dark:border-red-500/20 dark:bg-red-500/10
+                dark:text-red-300"
+            >
+              <AlertCircle size={19} className="shrink-0" />
+              <span className="break-words">{error}</span>
+            </div>
+          )}
+
           {success && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-[#315b48] dark:bg-[#1f352e] dark:text-emerald-300">
+            <div
+              role="status"
+              className="flex items-center gap-3 rounded-xl border
+                border-emerald-200 bg-emerald-50 p-4 text-sm
+                text-emerald-700 dark:border-emerald-500/20
+                dark:bg-emerald-500/10 dark:text-emerald-300"
+            >
               <CheckCircle2 size={18} />
-              {success}
+              <span>{success}</span>
               <button
+                type="button"
                 onClick={() => setSuccess("")}
                 className="ml-auto"
-                aria-label="Dismiss message"
+                aria-label="Dismiss"
               >
                 <X size={17} />
               </button>
             </div>
           )}
 
-          {/* Summary cards */}
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* FOUR EQUAL SUMMARY CARDS */}
+          <section
+            className="grid grid-cols-1 items-stretch gap-4
+              sm:grid-cols-2 xl:grid-cols-4"
+          >
             <StatCard
               title="Total Assignments"
-              value={assignments.length}
-              subtitle="Created in this demo"
-              icon={<ClipboardList size={22} />}
+              value={loading ? "…" : complete ? assignments.length : "—"}
+              subtitle="Assignments retrieved from backend"
+              icon={ClipboardList}
               color="blue"
             />
-
             <StatCard
               title="Students Assigned"
-              value={totalAssigned}
-              subtitle="Across listed assignments"
-              icon={<Users size={22} />}
+              value={loading ? "…" : assigned ?? "—"}
+              subtitle="Assignment recipients across all records"
+              icon={Users}
               color="purple"
             />
-
             <StatCard
               title="Completed Submissions"
-              value={totalCompleted}
-              subtitle={`${completedCount} assignments fully completed`}
-              icon={<CheckCircle2 size={22} />}
+              value={loading ? "…" : completed ?? "—"}
+              subtitle="Completed assignment targets"
+              icon={CheckCircle2}
               color="green"
             />
-
             <StatCard
               title="Overdue"
-              value={overdueCount}
-              subtitle="Past due date and incomplete"
-              icon={<Clock size={22} />}
+              value={loading ? "…" : overdue ?? "—"}
+              subtitle="Published assignments past due with incomplete targets"
+              icon={Clock}
               color="orange"
             />
           </section>
 
-          {/* Assignment type cards */}
+          {/* CATEGORY CARDS */}
           <section>
             <div className="mb-4">
               <h2 className="text-lg font-bold">Assignment Categories</h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-[#b0a5bd]">
+              <p className={`mt-1 text-sm ${muted}`}>
                 Select a category to filter the assignment list.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              {assignmentTypes.map((type) => {
-                const count = assignments.filter(
-                  (item) => item.type === type
-                ).length;
-
-                const icon =
-                  type === "Mock Test" ? (
-                    <Target size={23} />
-                  ) : type === "Practice Test" ? (
-                    <ClipboardList size={23} />
-                  ) : (
-                    <BookOpen size={23} />
-                  );
-
-                const iconColor =
-                  type === "Mock Test"
-                    ? "bg-violet-50 text-violet-600 dark:bg-[#30263d] dark:text-violet-300"
-                    : type === "Practice Test"
-                      ? "bg-blue-50 text-blue-600 dark:bg-[#202b3b] dark:text-blue-300"
-                      : "bg-orange-50 text-orange-600 dark:bg-[#3b3020] dark:text-orange-300";
-
+            <div
+              className="grid grid-cols-1 items-stretch gap-4
+                md:grid-cols-3"
+            >
+              {categoryCards.map((category) => {
+                const Icon = category.icon;
                 return (
-                  <button
-                    key={type}
+                  <HoverCard
+                    key={category.title}
                     onClick={() => {
-                      setTypeFilter(typeFilter === type ? "All Types" : type);
-                      document
-                        .getElementById("assignment-list")
+                      setTypeFilter(
+                        typeFilter === category.title
+                          ? "All Types"
+                          : category.title
+                      );
+                      document.getElementById("assignment-list")
                         ?.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className={`rounded-2xl border bg-white dark:bg-[#211e27] p-5 text-left shadow-sm transition hover:shadow-md dark:hover:bg-[#28242e] ${
-                      typeFilter === type
-                        ? "border-[#FF2454] ring-2 ring-pink-50 dark:ring-[#49303d]"
-                        : "border-gray-100 dark:border-[#3b3441]"
-                    }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div
-                        className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconColor}`}
-                      >
-                        {icon}
+                    <div className="flex h-full min-h-[185px] flex-col p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className={`flex h-12 w-12 items-center
+                            justify-center rounded-xl ${category.color}`}
+                        >
+                          <Icon size={23} />
+                        </div>
+                        <span
+                          className="rounded-full bg-gray-100 px-3 py-1
+                            text-xs font-semibold dark:bg-[#393441]"
+                        >
+                          {categoryCount(category.title)}
+                        </span>
                       </div>
-
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${typeStyles[type]}`}
-                      >
-                        {count} {count === 1 ? "assignment" : "assignments"}
-                      </span>
+                      <h3 className="mt-4 font-bold">{category.title}</h3>
+                      <p className={`mt-auto pt-2 text-sm ${muted}`}>
+                        {category.description}
+                      </p>
                     </div>
-
-                    <h3 className="mt-4 font-bold">{type}</h3>
-
-                    <p className="mt-1 text-sm text-gray-500 dark:text-[#b0a5bd]">
-                      {type === "Mock Test"
-                        ? "Full-length IELTS assessments"
-                        : type === "Practice Test"
-                          ? "Skill-wise practice activities"
-                          : "Guides, notes and learning resources"}
-                    </p>
-                  </button>
+                  </HoverCard>
                 );
               })}
             </div>
+
+            <p className={`mt-2 text-xs ${muted}`}>
+              Category cards are ready for future API category data.
+              Current assignment listing does not return a category field.
+            </p>
           </section>
 
-          {/* Assignment table */}
+          {/* ASSIGNMENT TABLE */}
           <section
             id="assignment-list"
-            className="overflow-hidden rounded-2xl border border-gray-100 dark:border-[#3b3441] bg-white dark:bg-[#211e27] shadow-sm"
+            className={`rounded-2xl border ${border}
+              bg-white shadow-sm dark:bg-[#211e27]`}
           >
-            <div className="border-b border-gray-100 dark:border-[#3b3441] p-5 sm:p-6">
-              <div>
-                <h2 className="text-lg font-bold">All Assignments</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-[#b0a5bd]">
-                  Monitor deadlines and student completion.
-                </p>
-              </div>
+            <div className={`border-b ${border} p-5 sm:p-6`}>
+              <h2 className="text-lg font-bold">All Assignments</h2>
+              <p className={`mt-1 text-sm ${muted}`}>
+                Monitor deadlines and student completion.
+              </p>
 
               <div className="mt-5 flex flex-col gap-3 xl:flex-row">
                 <div className="relative min-w-0 flex-1">
                   <Search
                     size={18}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#91899b]"
+                    className="absolute left-3.5 top-1/2
+                      -translate-y-1/2 text-gray-400"
                   />
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search assignments or recipients..."
-                    className={`${inputClass} bg-gray-50 dark:bg-[#19171e] pl-10`}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search assignments..."
+                    className={`${inputClass} pl-10`}
                   />
                 </div>
 
                 <div className="relative">
                   <Filter
                     size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#91899b]"
+                    className="pointer-events-none absolute left-3
+                      top-1/2 -translate-y-1/2 text-gray-400"
                   />
                   <select
                     value={typeFilter}
-                    onChange={(event) => setTypeFilter(event.target.value)}
-                    className={`${inputClass} appearance-none pl-9 pr-9 sm:min-w-[180px]`}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className={`${inputClass} appearance-none
+                      pl-9 pr-9 sm:min-w-[180px]`}
                   >
                     <option>All Types</option>
-                    {assignmentTypes.map((type) => (
+                    {TYPES.map((type) => (
                       <option key={type}>{type}</option>
                     ))}
                   </select>
                   <ChevronDown
                     size={15}
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#91899b]"
+                    className="pointer-events-none absolute right-3
+                      top-1/2 -translate-y-1/2 text-gray-400"
                   />
                 </div>
 
                 <div className="relative">
                   <select
                     value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className={`${inputClass} appearance-none pr-9 sm:min-w-[155px]`}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className={`${inputClass} appearance-none
+                      pr-9 sm:min-w-[155px]`}
                   >
                     <option>All Status</option>
-                    <option>In Progress</option>
-                    <option>Completed</option>
-                    <option>Overdue</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                    <option value="OVERDUE">Overdue</option>
                   </select>
                   <ChevronDown
                     size={15}
-                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#91899b]"
+                    className="pointer-events-none absolute right-3
+                      top-1/2 -translate-y-1/2 text-gray-400"
                   />
                 </div>
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left">
+              <table className="w-full min-w-[980px] text-left">
                 <thead className="bg-gray-50 dark:bg-[#302b37]">
-                  <tr className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-[#b0a5bd]">
+                  <tr className={`text-xs uppercase tracking-wide ${muted}`}>
                     <th className="px-5 py-4">Assignment</th>
-                    <th className="px-5 py-4">Assigned To</th>
+                    <th className="px-5 py-4">Type</th>
+                    <th className="px-5 py-4">Recipients</th>
                     <th className="px-5 py-4">Due Date</th>
-                    <th className="px-5 py-4">Submissions</th>
+                    <th className="px-5 py-4">Progress</th>
                     <th className="px-5 py-4">Status</th>
                     <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-gray-100 dark:divide-[#3b3441]">
-                  {filteredAssignments.map((assignment) => {
-                    const status = getStatus(assignment);
-                    const progress = assignment.students
-                      ? Math.round(
-                          (assignment.completed / assignment.students) * 100
-                        )
-                      : 0;
+                <tbody
+                  className="divide-y divide-gray-100
+                    dark:divide-[#3b3441]"
+                >
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="py-14 text-center">
+                        <LoaderCircle
+                          size={28}
+                          className="mx-auto animate-spin text-[#FF2454]"
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    visible.map((item) => {
+                      const status = statusOf(item);
 
-                    return (
-                      <tr
-                        key={assignment.id}
-                        className="transition hover:bg-gray-50/70 dark:hover:bg-[#302b37]"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-[#202b3b] dark:text-blue-300">
-                              {assignment.type === "Study Material" ? (
-                                <BookOpen size={20} />
-                              ) : (
-                                <FileText size={20} />
+                      return (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-gray-50/70
+                            dark:hover:bg-[#302b37]"
+                        >
+                          <td className="px-5 py-4">
+                            <p className="max-w-[240px] font-semibold">
+                              {item.title}
+                            </p>
+                            <p className={`mt-1 text-xs ${muted}`}>
+                              Created {formatDate(item.createdAt)}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span className={`text-sm ${muted}`}>
+                              {item.category || "—"}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <Users size={16} className={muted} />
+                              <span className="text-sm font-semibold">
+                                {item.assignedCount ?? "—"}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span className="flex items-center gap-2 text-sm">
+                              <CalendarDays size={16} className={muted} />
+                              {formatDate(item.dueAt)}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <ProgressBar
+                              completed={item.completedCount}
+                              total={item.assignedCount}
+                            />
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`rounded-full px-3 py-1.5
+                                text-xs font-semibold ${statusStyle(status)}`}
+                            >
+                              {status}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <div className="relative inline-block">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setMenuId(
+                                    menuId === item.id ? null : item.id
+                                  )
+                                }
+                                aria-label={`Actions for ${item.title}`}
+                                className="rounded-lg p-2 text-gray-400
+                                  hover:bg-gray-100 dark:hover:bg-[#393441]"
+                              >
+                                <MoreHorizontal size={20} />
+                              </button>
+
+                              {menuId === item.id && (
+                                <div
+                                  className={`absolute right-0 top-10 z-30
+                                    w-48 rounded-xl border ${border}
+                                    bg-white p-1.5 text-left shadow-xl
+                                    dark:bg-[#211e27]`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => openDetails(item)}
+                                    className="flex w-full items-center
+                                      gap-2 rounded-lg px-3 py-2.5 text-sm
+                                      hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                                  >
+                                    <Eye size={16} /> View Details
+                                  </button>
+
+                                  {item.status === "DRAFT" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEdit(item)}
+                                        className="flex w-full items-center
+                                          gap-2 rounded-lg px-3 py-2.5 text-sm
+                                          hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                                      >
+                                        <Pencil size={16} /> Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          changeStatus(item, "publish")
+                                        }
+                                        className="flex w-full items-center
+                                          gap-2 rounded-lg px-3 py-2.5 text-sm
+                                          hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                                      >
+                                        <Send size={16} /> Publish
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {item.status === "PUBLISHED" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => changeStatus(item, "close")}
+                                      className="flex w-full items-center
+                                        gap-2 rounded-lg px-3 py-2.5 text-sm
+                                        hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                                    >
+                                      <Lock size={16} /> Close
+                                    </button>
+                                  )}
+
+                                  {["DRAFT", "PUBLISHED"].includes(
+                                    item.status
+                                  ) && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        changeStatus(item, "cancel")
+                                      }
+                                      className="flex w-full items-center
+                                        gap-2 rounded-lg px-3 py-2.5 text-sm
+                                        hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                                    >
+                                      <Ban size={16} /> Cancel
+                                    </button>
+                                  )}
+
+                                  {item.status === "DRAFT" && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        changeStatus(item, "delete")
+                                      }
+                                      className="flex w-full items-center
+                                        gap-2 rounded-lg px-3 py-2.5
+                                        text-sm text-red-600
+                                        hover:bg-red-50 dark:hover:bg-[#39232f]"
+                                    >
+                                      <Trash2 size={16} /> Delete
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
-
-                            <div className="max-w-[270px]">
-                              <p className="font-semibold text-[#10265F] dark:text-white">
-                                {assignment.title}
-                              </p>
-                              <span
-                                className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${typeStyles[assignment.type]}`}
-                              >
-                                {assignment.type}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <Users
-                              size={16}
-                              className="text-gray-400 dark:text-[#91899b]"
-                            />
-                            <div>
-                              <p className="text-sm font-medium">
-                                {assignment.target}
-                              </p>
-                              <p className="mt-1 text-xs text-gray-400 dark:text-[#91899b]">
-                                {assignment.students} students
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <CalendarDays
-                              size={16}
-                              className={
-                                status === "Overdue"
-                                  ? "text-red-500"
-                                  : "text-gray-400 dark:text-[#91899b]"
-                              }
-                            />
-                            <span
-                              className={`text-sm ${
-                                status === "Overdue"
-                                  ? "font-semibold text-red-600 dark:text-red-400"
-                                  : "text-gray-600 dark:text-[#b0a5bd]"
-                              }`}
-                            >
-                              {new Date(
-                                `${assignment.dueDate}T12:00:00`
-                              ).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="w-32">
-                            <div className="mb-2 flex justify-between gap-2 text-xs">
-                              <span className="font-semibold text-[#10265F] dark:text-white">
-                                {assignment.completed}/{assignment.students}
-                              </span>
-                              <span className="text-gray-400 dark:text-[#91899b]">
-                                {progress}%
-                              </span>
-                            </div>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-[#393441]">
-                              <div
-                                className={`h-full rounded-full ${
-                                  status === "Completed"
-                                    ? "bg-emerald-500"
-                                    : "bg-[#FF2454]"
-                                }`}
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <StatusBadge status={status} />
-                        </td>
-
-                        <td className="px-5 py-4 text-right">
-                          <div className="relative inline-block">
-                            <button
-                              onClick={() =>
-                                setMenuId(
-                                  menuId === assignment.id
-                                    ? null
-                                    : assignment.id
-                                )
-                              }
-                              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-[#10265F] dark:text-[#91899b] dark:hover:bg-[#393441] dark:hover:text-white"
-                              aria-label="Assignment actions"
-                            >
-                              <MoreHorizontal size={20} />
-                            </button>
-
-                            {menuId === assignment.id && (
-                              <div className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-gray-100 dark:border-[#3b3441] bg-white dark:bg-[#211e27] p-1.5 text-left shadow-xl">
-                                <button
-                                  onClick={() => {
-                                    setSelectedAssignment(assignment);
-                                    setMenuId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-[#302b37]"
-                                >
-                                  <Eye size={16} />
-                                  View Details
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    removeAssignment(assignment.id)
-                                  }
-                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-[#39232f]"
-                                >
-                                  <Trash2 size={16} />
-                                  Remove
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
-            {filteredAssignments.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <div className="px-6 py-14 text-center">
                 <ClipboardList
                   size={34}
-                  className="mx-auto text-gray-300 dark:text-[#625a6c]"
+                  className="mx-auto text-gray-300"
                 />
-                <h3 className="mt-3 font-semibold">No assignments found</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-[#b0a5bd]">
-                  Try changing your search or filters.
+                <p className="mt-3 font-semibold">
+                  No assignments found
+                </p>
+                <p className={`mt-2 text-sm ${muted}`}>
+                  {assignments.length === 0
+                    ? "Assignments will appear here when available."
+                    : "Try changing your search or filters."}
                 </p>
                 <button
+                  type="button"
                   onClick={() => {
                     setSearch("");
                     setTypeFilter("All Types");
@@ -700,392 +1073,466 @@ export default function Assignments() {
                   }}
                   className="mt-3 text-sm font-semibold text-[#FF2454]"
                 >
-                  Clear Filters
+                  Clear filters
                 </button>
               </div>
             )}
 
-            <div className="flex flex-col gap-2 border-t border-gray-100 dark:border-[#3b3441] px-5 py-4 text-sm text-gray-500 dark:text-[#b0a5bd] sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Showing {filteredAssignments.length} of {assignments.length}{" "}
-                assignments
+            <div
+              className={`flex flex-col gap-3 border-t ${border}
+                px-5 py-4 text-sm sm:flex-row sm:items-center
+                sm:justify-between`}
+            >
+              <span className={muted}>
+                Showing {visible.length} of {filtered.length} assignments
               </span>
-              <span className="text-xs text-gray-400 dark:text-[#91899b]">
-                Demo data · Backend integration pending
-              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className={`${inputClass} w-auto py-2`}
+                  aria-label="Rows per page"
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className={`rounded-lg border ${border}
+                    px-3 py-2 disabled:opacity-40`}
+                >
+                  Previous
+                </button>
+
+                <span className={`text-xs ${muted}`}>
+                  {currentPage} / {pageCount}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= pageCount}
+                  onClick={() => setPage((p) => p + 1)}
+                  className={`rounded-lg border ${border}
+                    px-3 py-2 disabled:opacity-40`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </section>
 
-          {/* Batch overview */}
-          <section className="rounded-2xl border border-gray-100 dark:border-[#3b3441] bg-white dark:bg-[#211e27] p-5 shadow-sm sm:p-6">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-[#202b3b] dark:text-blue-300">
-                <Layers size={22} />
-              </div>
-              <div>
-                <h2 className="font-bold">Batch Assignment Overview</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-[#b0a5bd]">
-                  Quick view of the learning groups available to your trainer
-                  account.
-                </p>
-              </div>
-            </div>
+          {/* BATCHES */}
+          <section>
+            <h2 className="text-lg font-bold">Available Batches</h2>
+            <p className={`mb-4 mt-1 text-sm ${muted}`}>
+              Real batches available for assignment targeting.
+            </p>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {batches.map((batch, index) => {
-                const count = assignments.filter(
-                  (item) => item.target === batch
-                ).length;
-
-                return (
-                  <div
-                    key={batch}
-                    className="rounded-xl border border-gray-100 dark:border-[#3b3441] p-4"
+            {batches.length === 0 ? (
+              <div
+                className={`rounded-2xl border ${border}
+                  bg-white p-10 text-center dark:bg-[#211e27]`}
+              >
+                <Layers size={30} className="mx-auto text-gray-400" />
+                <p className="mt-3 font-semibold">No batches available</p>
+              </div>
+            ) : (
+              <div
+                className="grid grid-cols-1 items-stretch gap-4
+                  sm:grid-cols-2 xl:grid-cols-3"
+              >
+                {batches.map((batch) => (
+                  <HoverCard
+                    key={batch.id}
+                    onClick={() => {
+                      setForm({
+                        ...EMPTY_FORM,
+                        batchId: batch.id,
+                      });
+                      setEditing(null);
+                      setShowModal(true);
+                    }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold">{batch}</p>
-                      <span className="rounded-lg bg-gray-50 dark:bg-[#302b37] px-2.5 py-1 text-xs text-gray-500 dark:text-[#b0a5bd]">
-                        {count} assignments
-                      </span>
+                    <div className="flex h-full min-h-[150px] flex-col p-5">
+                      <Layers size={22} className="text-[#FF2454]" />
+                      <h3 className="mt-4 font-bold">{batch.name}</h3>
+                      <p className={`mt-auto pt-4 text-sm ${muted}`}>
+                        Create assignment for this batch
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-[#b0a5bd]">
-                      {index === 0
-                        ? "Morning learning group"
-                        : index === 1
-                          ? "Evening learning group"
-                          : "Weekend learning group"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+                  </HoverCard>
+                ))}
+              </div>
+            )}
           </section>
         </main>
       </div>
 
-      {/* Create Assignment Modal */}
+      {/* CREATE / EDIT ASSIGNMENT MODAL */}
       {showModal && (
-        <Modal title="Create Assignment" onClose={closeModal}>
-          <p className="mb-5 text-sm leading-6 text-gray-500 dark:text-[#b0a5bd]">
-            Choose learning content, select recipients and set a deadline.
-          </p>
-
-          <form onSubmit={handleCreateAssignment} className="space-y-4">
-            <Field label="Assignment Title" required>
+        <Modal
+          title={editing ? "Edit Assignment" : "Create Assignment"}
+          onClose={closeModals}
+        >
+          <form onSubmit={saveAssignment} className="space-y-4">
+            <Field label="Assignment Title">
               <input
                 name="title"
                 value={form.title}
-                onChange={updateForm}
-                placeholder="e.g. IELTS Reading Mock Test 03"
+                onChange={changeForm}
+                placeholder="Enter assignment title"
                 required
+                minLength={3}
                 className={inputClass}
               />
             </Field>
 
-            <Field label="Assignment Type" required>
+            <Field
+              label="Assignment Type"
+              hint="Category UI is future-ready. The current create API does not store this field."
+            >
               <select
                 name="type"
                 value={form.type}
-                onChange={updateForm}
-                required
+                onChange={changeForm}
                 className={inputClass}
               >
-                {assignmentTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
+                {TYPES.map((type) => (
+                  <option key={type}>{type}</option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Assign To" required>
-              <select
-                name="targetType"
-                value={form.targetType}
-                onChange={updateForm}
-                className={inputClass}
-              >
-                <option value="Student">Individual Student</option>
-                <option value="Batch">Entire Batch</option>
-                <option value="All Students">All Students</option>
-              </select>
-            </Field>
+            {!editing && (
+              <>
+                <Field label="Assign To">
+                  <select
+                    name="targetType"
+                    value={form.targetType}
+                    onChange={changeForm}
+                    className={inputClass}
+                  >
+                    <option value="Batch">Batch</option>
+                    <option value="Student">Individual Student</option>
+                    <option value="All Students">All Students</option>
+                  </select>
+                </Field>
 
-            {form.targetType === "Batch" && (
-              <Field label="Select Batch" required>
-                <select
-                  name="target"
-                  value={form.target}
-                  onChange={updateForm}
-                  required
-                  className={inputClass}
-                >
-                  {batches.map((batch) => (
-                    <option key={batch} value={batch}>
-                      {batch}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+                {form.targetType === "Batch" && (
+                  <Field label="Select Batch">
+                    <select
+                      name="batchId"
+                      value={form.batchId}
+                      onChange={changeForm}
+                      className={inputClass}
+                      required
+                    >
+                      <option value="">Select a batch</option>
+                      {batches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
 
-            {form.targetType === "Student" && (
-              <Field label="Select Student" required>
-                <select
-                  name="target"
-                  value={form.target}
-                  onChange={updateForm}
-                  required
-                  className={inputClass}
-                >
-                  <option value="">Select a student</option>
-                  {[
-                    "Aarav Sharma",
-                    "Priya Verma",
-                    "Rahul Meena",
-                    "Sneha Gupta",
-                    "Rohan Singh",
-                    "Ananya Joshi",
-                  ].map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+                {form.targetType === "Student" && (
+                  <Field
+                    label="Student UUIDs"
+                    hint="Enter one or more existing student IDs separated by commas."
+                  >
+                    <textarea
+                      name="studentIds"
+                      value={form.studentIds}
+                      onChange={changeForm}
+                      rows={3}
+                      placeholder="student-uuid-1, student-uuid-2"
+                      className={inputClass}
+                    />
+                  </Field>
+                )}
 
-            {form.targetType === "All Students" && (
-              <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-3.5 text-sm text-blue-800 dark:bg-[#202b3b] dark:text-blue-300">
-                <Users size={19} className="mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-semibold">All students selected</p>
-                  <p className="mt-1 text-blue-700 dark:text-blue-300">
-                    The assignment will target all students in this demo.
+                {form.targetType === "All Students" && (
+                  <p
+                    className="rounded-xl bg-orange-50 p-3
+                      text-sm text-orange-700 dark:bg-[#3b3020]"
+                  >
+                    All Students targeting needs a verified recipient
+                    selection API. This option is retained for future
+                    integration and will not create a fake assignment.
                   </p>
-                </div>
-              </div>
+                )}
+
+                <Field
+                  label="Test Version UUIDs"
+                  hint="Required by the current backend. Enter published test version IDs, separated by commas. Each becomes one assignment content item."
+                >
+                  <textarea
+                    name="testVersionIds"
+                    value={form.testVersionIds}
+                    onChange={changeForm}
+                    rows={3}
+                    placeholder="Enter valid test version UUIDs"
+                    required
+                    className={inputClass}
+                  />
+                </Field>
+              </>
             )}
 
-            <Field label="Due Date" required>
+            <Field label="Due Date">
               <input
-                type="date"
+                type="datetime-local"
                 name="dueDate"
                 value={form.dueDate}
-                onChange={updateForm}
-                min={today}
-                required
+                onChange={changeForm}
                 className={inputClass}
               />
             </Field>
 
-            <Field label="Instructions">
+            <Field label="Instructions / Description">
               <textarea
                 name="description"
                 value={form.description}
-                onChange={updateForm}
-                rows={3}
-                placeholder="Add instructions for students..."
-                className={`${inputClass} resize-y`}
+                onChange={changeForm}
+                rows={4}
+                placeholder="Enter assignment instructions"
+                className={inputClass}
               />
             </Field>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-[#39232f] dark:text-red-300">
-                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+              <p
+                className="rounded-lg bg-red-50 p-3 text-sm
+                  text-red-600 dark:bg-[#39232f]"
+              >
                 {error}
-              </div>
+              </p>
             )}
 
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
               <button
                 type="button"
-                onClick={closeModal}
-                className="flex-1 rounded-xl border border-gray-200 dark:border-[#3b3441] px-4 py-3 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-[#302b37]"
+                onClick={closeModals}
+                disabled={saving}
+                className={`flex-1 rounded-xl border ${border}
+                  px-4 py-3 text-sm font-semibold`}
               >
                 Cancel
               </button>
+
               <button
                 type="submit"
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-semibold text-white hover:bg-[#e91d49]"
+                disabled={saving}
+                className={`flex-1 rounded-xl px-4 py-3
+                  text-sm font-semibold disabled:opacity-50 ${pink}`}
               >
-                <Send size={17} />
-                Assign
+                {saving
+                  ? "Saving..."
+                  : editing
+                    ? "Save Changes"
+                    : "Create Assignment"}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Assignment Details Modal */}
+      {/* ASSIGNMENT DETAILS MODAL */}
       {selectedAssignment && (
         <Modal
           title="Assignment Details"
-          onClose={() => setSelectedAssignment(null)}
+          onClose={closeModals}
+          wide
         >
-          <div className="rounded-xl bg-gray-50 dark:bg-[#302b37] p-4">
-            <span
-              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${typeStyles[selectedAssignment.type]}`}
-            >
-              {selectedAssignment.type}
-            </span>
-            <h3 className="mt-3 text-lg font-bold">
-              {selectedAssignment.title}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-[#b0a5bd]">
-              {selectedAssignment.description || "No instructions provided."}
-            </p>
-          </div>
+          {detailLoading ? (
+            <div className="flex justify-center py-12">
+              <LoaderCircle
+                size={28}
+                className="animate-spin text-[#FF2454]"
+              />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div
+                className="rounded-xl bg-gray-50 p-4
+                  dark:bg-[#302b37]"
+              >
+                <h3 className="text-lg font-bold">
+                  {selectedAssignment.title}
+                </h3>
+                <p className={`mt-2 text-sm ${muted}`}>
+                  Assignment ID: {selectedAssignment.id}
+                </p>
+              </div>
 
-          <div className="mt-5 space-y-4">
-            <DetailRow
-              icon={<Users size={17} />}
-              label="Assigned To"
-              value={selectedAssignment.target}
-            />
-            <DetailRow
-              icon={<CalendarDays size={17} />}
-              label="Due Date"
-              value={selectedAssignment.dueDate}
-            />
-            <DetailRow
-              icon={<Clock size={17} />}
-              label="Assigned Date"
-              value={selectedAssignment.assignedDate}
-            />
-            <DetailRow
-              icon={<CheckCircle2 size={17} />}
-              label="Submissions"
-              value={`${selectedAssignment.completed} of ${selectedAssignment.students}`}
-            />
-            <DetailRow
-              icon={<ClipboardList size={17} />}
-              label="Status"
-              value={getStatus(selectedAssignment)}
-            />
-          </div>
+              <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                <DetailRow
+                  label="Status"
+                  value={selectedAssignment.status}
+                />
+                <DetailRow
+                  label="Due Date"
+                  value={formatDate(selectedAssignment.dueAt)}
+                />
+                <DetailRow
+                  label="Created"
+                  value={formatDate(selectedAssignment.createdAt)}
+                />
+                <DetailRow
+                  label="Published"
+                  value={formatDate(selectedAssignment.publishedAt)}
+                />
+                <DetailRow
+                  label="Assigned Students"
+                  value={selectedAssignment.assignedCount}
+                />
+                <DetailRow
+                  label="Completed"
+                  value={selectedAssignment.completedCount}
+                />
+                <DetailRow
+                  label="Content Items"
+                  value={selectedAssignment._count?.contents}
+                />
+                <DetailRow
+                  label="Created By"
+                  value={selectedAssignment.createdBy?.profile?.name ||
+                    selectedAssignment.createdBy?.email}
+                />
+              </div>
 
-          <button
-            onClick={() => setSelectedAssignment(null)}
-            className="mt-6 w-full rounded-xl bg-[#10265F] px-4 py-3 text-sm font-semibold text-white hover:bg-[#19377d] dark:bg-[#35466d] dark:hover:bg-[#425780]"
-          >
-            Close Details
-          </button>
+              <section>
+                <h3 className="mb-3 font-bold">Instructions</h3>
+                <p className={`text-sm leading-6 ${muted}`}>
+                  {detail?.assignment?.instructions ||
+                    "No instructions available."}
+                </p>
+              </section>
+
+              <section>
+                <h3 className="mb-3 font-bold">
+                  Assigned Students
+                  {detail?.targetsTotal !== null &&
+                    detail?.targetsTotal !== undefined &&
+                    ` (${detail.targetsTotal})`}
+                </h3>
+
+                <div
+                  className={`overflow-x-auto rounded-xl border ${border}`}
+                >
+                  <table className="w-full min-w-[520px] text-left text-sm">
+                    <thead className="bg-gray-50 dark:bg-[#302b37]">
+                      <tr>
+                        <th className="px-4 py-3">Student</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Progress</th>
+                        <th className="px-4 py-3">Assigned</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      className="divide-y divide-gray-100
+                        dark:divide-[#3b3441]"
+                    >
+                      {(detail?.targets || []).map((target) => (
+                        <tr key={target.id}>
+                          <td className="px-4 py-3">
+                            {target.user?.profile?.name ||
+                              target.user?.email ||
+                              target.userId}
+                          </td>
+                          <td className="px-4 py-3">
+                            {target.status}
+                          </td>
+                          <td className="px-4 py-3">
+                            {target.completions?.[0]?.progress ?? "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {formatDate(target.assignedAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {!detail?.targets?.length && (
+                    <p className={`p-6 text-center text-sm ${muted}`}>
+                      No target records available.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-3 font-bold">
+                  Submissions
+                  {detail?.submissionsTotal !== null &&
+                    detail?.submissionsTotal !== undefined &&
+                    ` (${detail.submissionsTotal})`}
+                </h3>
+
+                <div
+                  className={`overflow-x-auto rounded-xl border ${border}`}
+                >
+                  <table className="w-full min-w-[520px] text-left text-sm">
+                    <thead className="bg-gray-50 dark:bg-[#302b37]">
+                      <tr>
+                        <th className="px-4 py-3">Student</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Completed</th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      className="divide-y divide-gray-100
+                        dark:divide-[#3b3441]"
+                    >
+                      {(detail?.submissions || []).map((item) => (
+                        <tr key={item.id}>
+                          <td className="px-4 py-3">
+                            {item.user?.profile?.name ||
+                              item.user?.email ||
+                              item.userId}
+                          </td>
+                          <td className="px-4 py-3">{item.status}</td>
+                          <td className="px-4 py-3">
+                            {formatDate(item.completedAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {!detail?.submissions?.length && (
+                    <p className={`p-6 text-center text-sm ${muted}`}>
+                      No submissions available.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {detail?.partial && (
+                <p
+                  className="rounded-xl bg-orange-50 p-3
+                    text-sm text-orange-700 dark:bg-[#3b3020]"
+                >
+                  Some assignment details could not be loaded.
+                </p>
+              )}
+
+              <p className={`text-xs ${muted}`}>
+                Student and submission previews show the first API page.
+                Full lists can be connected through the paginated service.
+              </p>
+            </div>
+          )}
         </Modal>
       )}
-    </div>
-  );
-}
-
-function StatCard({ title, value, subtitle, icon, color }) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-600 dark:bg-[#202b3b] dark:text-blue-400",
-    purple:
-      "bg-purple-50 text-purple-600 dark:bg-[#30263d] dark:text-purple-400",
-    green:
-      "bg-emerald-50 text-emerald-600 dark:bg-[#1f352e] dark:text-emerald-400",
-    orange:
-      "bg-orange-50 text-orange-600 dark:bg-[#3b3020] dark:text-orange-400",
-  };
-
-  return (
-    <div className="rounded-2xl border border-gray-100 dark:border-[#3b3441] bg-white dark:bg-[#211e27] p-5 shadow-sm transition hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-500 dark:text-[#b0a5bd]">
-            {title}
-          </p>
-          <h3 className="mt-3 text-3xl font-bold tracking-tight">{value}</h3>
-        </div>
-        <div
-          className={`flex h-12 w-12 items-center justify-center rounded-xl ${colors[color]}`}
-        >
-          {icon}
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-gray-400 dark:text-[#91899b]">
-        {subtitle}
-      </p>
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const styles = {
-    Completed:
-      "bg-emerald-50 text-emerald-700 dark:bg-[#1f352e] dark:text-emerald-300",
-    "In Progress":
-      "bg-blue-50 text-blue-700 dark:bg-[#202b3b] dark:text-blue-300",
-    Overdue: "bg-red-50 text-red-700 dark:bg-[#39232f] dark:text-red-300",
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${styles[status]}`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          status === "Completed"
-            ? "bg-emerald-500"
-            : status === "Overdue"
-              ? "bg-red-500"
-              : "bg-blue-500"
-        }`}
-      />
-      {status}
-    </span>
-  );
-}
-
-function Field({ label, required, children }) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-semibold text-[#10265F] dark:text-white">
-        {label}
-        {required && <span className="ml-1 text-[#FF2454]">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function DetailRow({ icon, label, value }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 text-gray-400 dark:text-[#91899b]">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-gray-400 dark:text-[#91899b]">{label}</p>
-        <p className="mt-1 break-words text-sm font-medium text-[#10265F] dark:text-white">
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }) {
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#0B1739]/50 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="my-auto max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white dark:bg-[#211e27] p-5 shadow-2xl sm:p-7">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-[#10265F] dark:text-white">
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-[#91899b] dark:hover:bg-[#393441] dark:hover:text-white"
-            aria-label="Close modal"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        {children}
-      </div>
     </div>
   );
 }

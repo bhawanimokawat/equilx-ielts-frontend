@@ -70,13 +70,12 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // axiosInstance calls this when the session cannot be renewed anymore.
+  // If a refresh fails later (cookie expired or revoked), log the user out.
   useEffect(() => {
     setSessionExpiredHandler(() => {
+      setAccessToken(null);
       setUser(null);
-      toast.error("Your session has expired. Please log in again.", {
-        id: "session-expired", // same id: the toast never shows twice
-      });
+      toast.error("Your session has expired. Please log in again.");
     });
 
     return () => setSessionExpiredHandler(null);
@@ -92,7 +91,7 @@ export function AuthProvider({ children }) {
         success: true,
         twoFactorRequired: true,
         challengeId: data.challengeId,
-        expiresIn: data.expiresIn,
+        expiresIn: data.expiresIn ?? 300,
       };
     }
 
@@ -159,40 +158,36 @@ export function AuthProvider({ children }) {
   // useMemo: the value changes only when something really changed,
   // so pages that use useAuth() do not re-render for no reason.
   const value = useMemo(
-  () => ({
-    user,
-    role: user?.platformRole || "GUEST",
-    isAuthenticated: Boolean(user),
-    loading,
-    login,
-    verifyLoginOtp,
-    googleLogin,
-    logout,
-  }),
-  [user, loading, login, verifyLoginOtp, googleLogin, logout]
-);
-
-// Do not mount application pages until session restoration finishes.
-if (loading) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      Restoring session...
-    </div>
+    () => ({
+      user,
+      role: user?.platformRole || "GUEST",
+      isAuthenticated: Boolean(user),
+      loading,
+      login,
+      verifyLoginOtp,
+      googleLogin,
+      logout,
+    }),
+    [user, loading, login, verifyLoginOtp, googleLogin, logout]
   );
-}
 
-return (
-  <AuthContext.Provider value={value}>
-    {children}
-  </AuthContext.Provider>
-);
+  // Do not mount application pages until session restoration finishes.
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Restoring session...
+      </div>
+    );
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export default AuthContext;

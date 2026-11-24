@@ -4,7 +4,7 @@ import { request } from "./authService1";
 const RESOURCE_BASE_URL = "/materials";
 
 const resourceService = {
-  // Get all study resources with pagination and filters
+  // Get published study resources with filters and pagination.
   getResources(page = 1, limit = 12, filters = {}) {
     const params = new URLSearchParams();
 
@@ -31,10 +31,12 @@ const resourceService = {
       params.set("sort", filters.sort);
     }
 
-    return request(`${RESOURCE_BASE_URL}?${params.toString()}`);
+    return request(
+      `${RESOURCE_BASE_URL}?${params.toString()}`
+    );
   },
 
-  // Get a single resource by ID
+  // Get one published material.
   getResourceById(resourceId) {
     if (!resourceId) {
       throw new Error("Resource ID is required.");
@@ -42,6 +44,35 @@ const resourceService = {
 
     return request(
       `${RESOURCE_BASE_URL}/${encodeURIComponent(resourceId)}`
+    );
+  },
+
+  // Get all saved materials of the logged-in user.
+  getBookmarks() {
+    return request(`${RESOURCE_BASE_URL}/bookmarks`);
+  },
+
+  // Save a material in PostgreSQL.
+  addBookmark(resourceId) {
+    if (!resourceId) {
+      throw new Error("Resource ID is required.");
+    }
+
+    return request(
+      `${RESOURCE_BASE_URL}/${encodeURIComponent(resourceId)}/bookmark`,
+      { method: "POST" }
+    );
+  },
+
+  // Remove a saved material from PostgreSQL.
+  removeBookmark(resourceId) {
+    if (!resourceId) {
+      throw new Error("Resource ID is required.");
+    }
+
+    return request(
+      `${RESOURCE_BASE_URL}/${encodeURIComponent(resourceId)}/bookmark`,
+      { method: "DELETE" }
     );
   },
 };

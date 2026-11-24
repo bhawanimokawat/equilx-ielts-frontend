@@ -5,9 +5,9 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
-import { toast } from "react-hot-toast";
+
+import ProtectedRoute from "../src/components/ProtectedRoute";
 
 // Landing Page
 import LandingPage from "./pages/LandingPage";
@@ -24,6 +24,7 @@ import VerifyLoginOtp from "./pages/auth/VerifyLoginOtp";
 import Dashboard from "./pages/student/Dashboard";
 import PracticePage from "./pages/student/PracticePage";
 import MockTestsPage from "./pages/student/MockTestsPage";
+import MockTestAttemptPage from "./pages/student/MockTestAttemptPage";
 import StudyResourcesPage from "./pages/student/StudyResourcesPage";
 import MyProgressPage from "./pages/student/MyProgressPage";
 import AIFeedbackPage from "./pages/student/AIFeedbackPage";
@@ -65,11 +66,37 @@ import LiveSpeakingTest from "./pages/trainer/LiveSpeakingTest";
 import Messaging from "./pages/trainer/Messaging";
 import LeadsCRM from "./pages/trainer/LeadsCRM";
 
+// Role names must match user.platformRole from your backend.
+const ROLES = {
+  STUDENT: "STUDENT",
+  TRAINER: "TRAINER",
+  INSTITUTE: "INSTITUTE_ADMIN",
+  SUPER_ADMIN: "SUPER_ADMIN",
+};
+
+// Old / alternate URLs that should keep working: [from, to]
+const REDIRECTS = [
+  ["/student", "/student/dashboard"],
+  ["/student/resources", "/student/study-resources"],
+  ["/student/my-progress", "/student/progress"],
+  ["/student/my-plan", "/student/plan"],
+  ["/dashboard", "/student/dashboard"],
+  ["/practice", "/student/practice"],
+  ["/mock-tests", "/student/mock-tests"],
+  ["/study-resources", "/student/study-resources"],
+  ["/progress", "/student/progress"],
+  ["/ai-feedback", "/student/ai-feedback"],
+  ["/live-speaking", "/student/live-speaking"],
+  ["/chat", "/student/chat"],
+  ["/plan", "/student/plan"],
+  ["/my-plan", "/student/plan"],
+  ["/settings", "/student/settings"],
+  ["/institute", "/institute/dashboard"],
+  ["/superadmin", "/superadmin/dashboard"],
+  ["/trainer", "/trainer/dashboard"],
+];
+
 export default function App() {
-  useEffect(() => {
-  toast.error("Test error message");
-  toast.success("Test success message");
-}, []);
   return (
     <Router>
       <Toaster
@@ -79,11 +106,10 @@ export default function App() {
           error: { duration: 5000 },
         }}
       />
-      <Routes>
-        {/* Landing Page */}
-        <Route path="/" element={<LandingPage />} />
 
-        {/* Authentication */}
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyOTP />} />
@@ -91,251 +117,81 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-login-otp" element={<VerifyLoginOtp />} />
 
+        {/* Redirects (old URLs keep working) */}
+        {REDIRECTS.map(([from, to]) => (
+          <Route
+            key={from}
+            path={from}
+            element={<Navigate to={to} replace />}
+          />
+        ))}
+
         {/* Student Portal */}
-        <Route
-          path="/student"
-          element={<Navigate to="/student/dashboard" replace />}
-        />
-
-        <Route
-          path="/student/dashboard"
-          element={<Dashboard />}
-        />
-
-        <Route
-          path="/student/practice"
-          element={<PracticePage />}
-        />
-
-        <Route
-          path="/student/mock-tests"
-          element={<MockTestsPage />}
-        />
-
-        <Route
-          path="/student/study-resources"
-          element={<StudyResourcesPage />}
-        />
-
-        <Route
-          path="/student/resources"
-          element={<Navigate to="/student/study-resources" replace />}
-        />
-
-        <Route
-          path="/student/progress"
-          element={<MyProgressPage />}
-        />
-
-        <Route
-          path="/student/my-progress"
-          element={<Navigate to="/student/progress" replace />}
-        />
-
-        <Route
-          path="/student/ai-feedback"
-          element={<AIFeedbackPage />}
-        />
-
-        <Route
-          path="/student/live-speaking"
-          element={<LiveSpeakingPage />}
-        />
-
-        <Route
-          path="/student/chat"
-          element={<ChatPage />}
-        />
-
-        <Route
-          path="/student/plan"
-          element={<SubscriptionPlansPage />}
-        />
-
-        <Route
-          path="/student/my-plan"
-          element={<Navigate to="/student/plan" replace />}
-        />
-
-        <Route
-          path="/student/settings"
-          element={<SettingsPage />}
-        />
-
-        {/* Old Student URLs: keep working */}
-        <Route
-          path="/dashboard"
-          element={<Navigate to="/student/dashboard" replace />}
-        />
-
-        <Route
-          path="/practice"
-          element={<Navigate to="/student/practice" replace />}
-        />
-
-        <Route
-          path="/mock-tests"
-          element={<Navigate to="/student/mock-tests" replace />}
-        />
-
-        <Route
-          path="/study-resources"
-          element={<Navigate to="/student/study-resources" replace />}
-        />
-
-        <Route
-          path="/progress"
-          element={<Navigate to="/student/progress" replace />}
-        />
-
-        <Route
-          path="/ai-feedback"
-          element={<Navigate to="/student/ai-feedback" replace />}
-        />
-
-        <Route
-          path="/live-speaking"
-          element={<Navigate to="/student/live-speaking" replace />}
-        />
-
-        <Route
-          path="/chat"
-          element={<Navigate to="/student/chat" replace />}
-        />
-
-        <Route
-          path="/plan"
-          element={<Navigate to="/student/plan" replace />}
-        />
-
-        <Route
-          path="/my-plan"
-          element={<Navigate to="/student/plan" replace />}
-        />
-
-        <Route
-          path="/settings"
-          element={<Navigate to="/student/settings" replace />}
-        />
+        <Route element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]} />}>
+          <Route path="/student/dashboard" element={<Dashboard />} />
+          <Route path="/student/practice" element={<PracticePage />} />
+          <Route path="/student/mock-tests" element={<MockTestsPage />} />
+          <Route
+            path="/student/mock-test/attempt/:attemptId"
+            element={<MockTestAttemptPage />}
+          />
+          <Route path="/student/study-resources" element={<StudyResourcesPage />} />
+          <Route path="/student/progress" element={<MyProgressPage />} />
+          <Route path="/student/ai-feedback" element={<AIFeedbackPage />} />
+          <Route path="/student/live-speaking" element={<LiveSpeakingPage />} />
+          <Route path="/student/chat" element={<ChatPage />} />
+          <Route path="/student/plan" element={<SubscriptionPlansPage />} />
+          <Route path="/student/settings" element={<SettingsPage />} />
+        </Route>
 
         {/* Institute Portal */}
-        <Route
-          path="/institute"
-          element={<Navigate to="/institute/dashboard" replace />}
-        />
-
-        <Route
-          path="/institute/dashboard"
-          element={<InstituteDashboardPage />}
-        />
-
-        <Route path="/institute/students" element={<Students />} />
-        <Route path="/institute/trainers" element={<Trainers />} />
-        <Route path="/institute/batches" element={<Batches />} />
-        <Route path="/institute/assignments" element={<Assignments />} />
-        <Route path="/institute/reports" element={<ReportsAnalytics />} />
-        <Route path="/institute/crm" element={<CRM />} />
-
-        <Route
-          path="/institute/study-resources"
-          element={<StudyResources />}
-        />
-
-        <Route path="/institute/billing" element={<Billing />} />
-
-        <Route
-          path="/institute/settings"
-          element={<InstituteSettings />}
-        />
+        <Route element={<ProtectedRoute allowedRoles={[ROLES.INSTITUTE]} />}>
+          <Route path="/institute/dashboard" element={<InstituteDashboardPage />} />
+          <Route path="/institute/students" element={<Students />} />
+          <Route path="/institute/trainers" element={<Trainers />} />
+          <Route path="/institute/batches" element={<Batches />} />
+          <Route path="/institute/assignments" element={<Assignments />} />
+          <Route path="/institute/reports" element={<ReportsAnalytics />} />
+          <Route path="/institute/crm" element={<CRM />} />
+          <Route path="/institute/study-resources" element={<StudyResources />} />
+          <Route path="/institute/billing" element={<Billing />} />
+          <Route path="/institute/settings" element={<InstituteSettings />} />
+        </Route>
 
         {/* Super Admin Portal */}
-        <Route
-          path="/superadmin"
-          element={<Navigate to="/superadmin/dashboard" replace />}
-        />
-
-        <Route
-          path="/superadmin/dashboard"
-          element={<SuperAdminDashboard />}
-        />
-
-        <Route
-          path="/superadmin/cambridge-content"
-          element={<CambridgeContentManager />}
-        />
-
-        <Route
-          path="/superadmin/study-materials"
-          element={<StudyMaterialCMS />}
-        />
-
-        <Route
-          path="/superadmin/users-institutes"
-          element={<UserInstituteManagement />}
-        />
-
-        <Route
-          path="/superadmin/plans-payments"
-          element={<PlansPaymentsRefunds />}
-        />
-
-        <Route
-          path="/superadmin/ai-settings"
-          element={<AISettingsUsage />}
-        />
-
-        <Route
-          path="/superadmin/system-health"
-          element={<SystemHealth />}
-        />
-
-        <Route
-          path="/superadmin/audit-logs"
-          element={<AuditLogs />}
-        />
-
-        <Route
-          path="/superadmin/settings"
-          element={<SuperAdminSettings />}
-        />
+        <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
+          <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
+          <Route
+            path="/superadmin/cambridge-content"
+            element={<CambridgeContentManager />}
+          />
+          <Route path="/superadmin/study-materials" element={<StudyMaterialCMS />} />
+          <Route
+            path="/superadmin/users-institutes"
+            element={<UserInstituteManagement />}
+          />
+          <Route
+            path="/superadmin/plans-payments"
+            element={<PlansPaymentsRefunds />}
+          />
+          <Route path="/superadmin/ai-settings" element={<AISettingsUsage />} />
+          <Route path="/superadmin/system-health" element={<SystemHealth />} />
+          <Route path="/superadmin/audit-logs" element={<AuditLogs />} />
+          <Route path="/superadmin/settings" element={<SuperAdminSettings />} />
+        </Route>
 
         {/* Trainer Portal */}
-        <Route
-          path="/trainer"
-          element={<Navigate to="/trainer/dashboard" replace />}
-        />
-
-        <Route
-          path="/trainer/dashboard"
-          element={<TrainerDashboard />}
-        />
-
-        <Route path="/trainer/students" element={<StudentList />} />
-
-        <Route path="/trainer/reports" element={<StudentReports />} />
-
-        <Route
-          path="/trainer/student-reports"
-          element={<StudentReports />}
-        />
-
-        <Route
-          path="/trainer/assignments"
-          element={<AssignmentsTrainer />}
-        />
-
-        <Route
-          path="/trainer/writing-grading"
-          element={<WritingGradingQueue />}
-        />
-
-        <Route
-          path="/trainer/live-speaking"
-          element={<LiveSpeakingTest />}
-        />
-
-        <Route path="/trainer/messaging" element={<Messaging />} />
-        <Route path="/trainer/leads" element={<LeadsCRM />} />
+        <Route element={<ProtectedRoute allowedRoles={[ROLES.TRAINER]} />}>
+          <Route path="/trainer/dashboard" element={<TrainerDashboard />} />
+          <Route path="/trainer/students" element={<StudentList />} />
+          <Route path="/trainer/reports" element={<StudentReports />} />
+          <Route path="/trainer/student-reports" element={<StudentReports />} />
+          <Route path="/trainer/assignments" element={<AssignmentsTrainer />} />
+          <Route path="/trainer/writing-grading" element={<WritingGradingQueue />} />
+          <Route path="/trainer/live-speaking" element={<LiveSpeakingTest />} />
+          <Route path="/trainer/messaging" element={<Messaging />} />
+          <Route path="/trainer/leads" element={<LeadsCRM />} />
+        </Route>
 
         {/* Unknown Routes */}
         <Route path="*" element={<Navigate to="/" replace />} />

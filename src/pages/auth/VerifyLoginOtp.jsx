@@ -46,7 +46,11 @@ export default function VerifyLoginOtp() {
   // Countdown of the code lifetime (the backend gives 5 minutes).
   useEffect(() => {
     if (secondsLeft <= 0) return;
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+
+    const timer = setTimeout(() => {
+      setSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
     return () => clearTimeout(timer);
   }, [secondsLeft]);
 
@@ -57,7 +61,8 @@ export default function VerifyLoginOtp() {
     if (loading || expired) return;
 
     const code = otp.join("");
-    if (code.length !== 6) {
+
+    if (!/^\d{6}$/.test(code)) {
       toast.error("Please enter the complete 6-digit code.");
       return;
     }
@@ -67,7 +72,7 @@ export default function VerifyLoginOtp() {
     setLoading(false);
 
     if (!result.success) {
-      toast.error(result.error);
+      toast.error(result.error || "OTP verification failed.");
 
       if (RESTART_CODES.includes(result.code)) {
         navigate("/login", { replace: true });
@@ -77,6 +82,7 @@ export default function VerifyLoginOtp() {
       return;
     }
 
+    toast.success("Login verified successfully!");
     navigate(getHomePath(result.user), { replace: true });
   };
 
@@ -101,7 +107,9 @@ export default function VerifyLoginOtp() {
             </p>
 
             {email && (
-              <strong className="block text-rose-500 mt-2 break-all">{email}</strong>
+              <strong className="block text-rose-500 mt-2 break-all">
+                {email}
+              </strong>
             )}
           </div>
 
