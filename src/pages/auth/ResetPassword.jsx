@@ -14,7 +14,7 @@ import {
 
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ThemeToggle from "../../components/common/ThemeToggle";
-import authService from "../../services/authService";
+import authService from "../../services/authService1";
 
 export default function NewPasswordPage() {
   const navigate = useNavigate();

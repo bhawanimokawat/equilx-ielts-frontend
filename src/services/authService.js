@@ -1,148 +1,60 @@
+import api, { refreshSession, setAccessToken } from "../api/axiosInstance";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api/v1";
+// Every service function returns the backend body: { success, message, data }
+const unwrap = (response) => response.data;
 
-// Access token management
-export const setToken = (token) => {
-  try {
-    if (token) {
-      localStorage.setItem("equilx_token", token);
-    } else {
-      localStorage.removeItem("equilx_token");
-    }
-  } catch (error) {
-    console.error("Token storage error:", error);
-  }
-};
+const cleanEmail = (email) => String(email || "").trim();
 
-export const getToken = () => {
-  try {
-    return localStorage.getItem("equilx_token") || "";
-  } catch {
-    return "";
-  }
-};
-
-// Common API request function
-const request = async (endpoint, options = {}) => {
-  const token = getToken();
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
-
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const error = new Error(
-        data?.message ||
-        data?.error?.message ||
-        `Request failed with status ${response.status}`
-      );
-
-      error.status = response.status;
-      error.code = data?.code || data?.error?.code || "REQUEST_FAILED";
-      error.details =
-        data?.errors || data?.error?.details || null;
-
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    if (error instanceof TypeError) {
-      const connectionError = new Error(
-        "Unable to connect to Equilx IELTS API. Please check your backend server."
-      );
-
-      connectionError.status = 503;
-      connectionError.code = "CONNECTION_REFUSED";
-
-      throw connectionError;
-    }
-
-    throw error;
-  }
-};
-
-// Authentication APIs
 const authService = {
-  register: (payload) =>
-    request("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  login: (email, password) =>
-    request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
+  // The backend rejects any extra field (strict validation),
+  // so we send only the fields it accepts.
+  register: ({ name, email, password }) =>
+    api
+      .post("/auth/register", { name: String(name || "").trim(), email: cleanEmail(email), password })
+      .then(unwrap),
 
   verifyEmail: (email, otp) =>
-    request("/auth/verify-email", {
-      method: "POST",
-      body: JSON.stringify({ email, otp }),
-    }),
+    api.post("/auth/verify-email", { email: cleanEmail(email), otp }).then(unwrap),
 
   resendOtp: (email) =>
-    request("/auth/resend-otp", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
+    api.post("/auth/resend-otp", { email: cleanEmail(email) }).then(unwrap),
+
+  // May return { data: { twoFactorRequired: true, challengeId } } for staff accounts
+  login: (email, password) =>
+    api.post("/auth/login", { email: cleanEmail(email), password }).then(unwrap),
 
   verifyLoginOtp: (challengeId, otp) =>
-    request("/auth/verify-login-otp", {
-      method: "POST",
-      body: JSON.stringify({ challengeId, otp }),
-    }),
+    api.post("/auth/verify-login-otp", { challengeId, otp }).then(unwrap),
+
+  googleLogin: (idToken) =>
+    api.post("/auth/google", { idToken }).then(unwrap),
 
   forgotPassword: (email) =>
-    request("/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
+    api.post("/auth/forgot-password", { email: cleanEmail(email) }).then(unwrap),
 
-  resetPassword: (payload) =>
-    request("/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
+  resetPassword: ({ token, newPassword }) =>
+    api.post("/auth/reset-password", { token, newPassword }).then(unwrap),
 
-  changePassword: (payload) =>
-    request("/auth/change-password", {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
+  changePassword: ({ currentPassword, newPassword }) =>
+    api.patch("/auth/change-password", { currentPassword, newPassword }).then(unwrap),
 
-  getCurrentUser: () =>
-    request("/auth/me"),
+  getCurrentUser: () => api.get("/auth/me").then(unwrap),
 
-  refreshToken: () =>
-    request("/auth/refresh", {
-      method: "POST",
-    }),
+  // Restores the session from the refresh cookie (used when the page loads)
+  refresh: async () => {
+    const data = await refreshSession();
+    return { success: true, data };
+  },
 
+  // The access token is always cleared, even if the server call fails
   logout: async () => {
     try {
-      return await request("/auth/logout", {
-        method: "POST",
-      });
+      return await api.post("/auth/logout").then(unwrap);
     } finally {
-      setToken(null);
+      setAccessToken(null);
     }
   },
 };
 
 export default authService;
-export { request };
+

@@ -1,113 +1,176 @@
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import toast from "react-hot-toast";
 
-import { createContext, useState, useEffect } from "react";
-import authService, { setToken } from "../services/authService";
+import authService from "../services/authService";
+import {
+  setAccessToken,
+  setSessionExpiredHandler,
+} from "../api/axiosInstance";
 
 const AuthContext = createContext(null);
 
+// The backend returns slightly different user shapes (login, refresh, /auth/me).
+// We make them one shape and remove fields the UI never needs.
+function normalizeUser(user) {
+  if (!user) return null;
+
+  const normalized = { ...user };
+  delete normalized.tokenVersion;
+  normalized.emailVerified = Boolean(
+    user.emailVerifiedAt ?? user.emailVerified
+  );
+
+  return normalized;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
 
+  // true only while we restore the session on the first page load
+  const [loading, setLoading] = useState(true);
+
+  // Restore the session from the refresh cookie when the app starts.
   useEffect(() => {
     let cancelled = false;
 
-    const initializeAuth = async () => {
-      const token = localStorage.getItem("equilx_token");
+    // Remove the old insecure token saved by the previous version of the app.
+    try {
+      localStorage.removeItem("equilx_token");
+    } catch {
+      // storage not available, nothing to clean
+    }
 
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setToken(token);
-        const response = await authService.getCurrentUser();
-
+    authService
+      .refresh()
+      .then(({ data }) => {
+        if (!cancelled) setUser(normalizeUser(data.user));
+      })
+      .catch(() => {
+        // No valid cookie: the visitor is simply logged out.
         if (!cancelled) {
-          setUser({
-            ...response.data.user,
-            token,
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
+          setAccessToken(null);
           setUser(null);
-          setToken("");
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    };
-
-    initializeAuth();
+      });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const login = async (email, password) => {
-    setLoading(true);
-    setAuthError(null);
+  // axiosInstance calls this when the session cannot be renewed anymore.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      setUser(null);
+      toast.error("Your session has expired. Please log in again.", {
+        id: "session-expired", // same id: the toast never shows twice
+      });
+    });
 
-    try {
-      const response = await authService.login(email, password);
+    return () => setSessionExpiredHandler(null);
+  }, []);
 
-      if (response.data?.twoFactorRequired) {
+  // Shared by login, OTP login and Google login.
+  const completeLogin = useCallback((body) => {
+    const data = body?.data;
+
+    // Staff accounts need a second step (OTP sent by email).
+    if (data?.twoFactorRequired) {
+      return {
+        success: true,
+        twoFactorRequired: true,
+        challengeId: data.challengeId,
+        expiresIn: data.expiresIn,
+      };
+    }
+
+    if (!data?.accessToken || !data?.user) {
+      throw new Error("Invalid response from the server. Please try again.");
+    }
+
+    setAccessToken(data.accessToken);
+    const nextUser = normalizeUser(data.user);
+    setUser(nextUser);
+
+    return {
+      success: true,
+      user: nextUser,
+      isNewUser: Boolean(data.isNewUser),
+    };
+  }, []);
+
+  // Runs an auth request and always returns { success, ... } instead of throwing.
+  const runAuthAction = useCallback(
+    async (action) => {
+      try {
+        return completeLogin(await action());
+      } catch (error) {
         return {
-          success: true,
-          twoFactorRequired: true,
-          challengeId: response.data.challengeId,
+          success: false,
+          error: error.message || "Unable to continue. Please try again.",
+          code: error.code || null,
+          status: error.status || 0,
         };
       }
+    },
+    [completeLogin]
+  );
 
-      const token = response.data?.accessToken;
-      const userData = response.data?.user;
-      
+  const login = useCallback(
+    (email, password) =>
+      runAuthAction(() => authService.login(email, password)),
+    [runAuthAction]
+  );
 
+  const verifyLoginOtp = useCallback(
+    (challengeId, otp) =>
+      runAuthAction(() => authService.verifyLoginOtp(challengeId, otp)),
+    [runAuthAction]
+  );
 
-      if (!token || !userData) {
-        throw new Error("Invalid login response from server.");
-      }
+  const googleLogin = useCallback(
+    (idToken) => runAuthAction(() => authService.googleLogin(idToken)),
+    [runAuthAction]
+  );
 
-      setToken(token);
-      setUser({ ...userData, token });
-
-      return { success: true, user: userData };
-    } catch (error) {
-      setAuthError(error.message);
-      return { success: false, error: error.message };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authService.logout();
-    } catch (error) {
-      console.error("Logout API error:", error);
+    } catch {
+      // Even if the server call fails, the user is logged out on this device.
     } finally {
-      setToken("");
+      setAccessToken(null);
       setUser(null);
     }
-  };
+  }, []);
+
+  // useMemo: the value changes only when something really changed,
+  // so pages that use useAuth() do not re-render for no reason.
+  const value = useMemo(
+    () => ({
+      user,
+      role: user?.platformRole || "GUEST",
+      isAuthenticated: Boolean(user),
+      loading,
+      login,
+      verifyLoginOtp,
+      googleLogin,
+      logout,
+    }),
+    [user, loading, login, verifyLoginOtp, googleLogin, logout]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role: user?.platformRole || "GUEST",
-        isAuthenticated: Boolean(user?.token),
-        loading,
-        authError,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 }
 
