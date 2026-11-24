@@ -1,8 +1,8 @@
-
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import Sidebar from "../Sidebar.jsx";
-import Navbar from "../Navbar.jsx";
-import api from "../../../api/axiosInstance.js";
+import Sidebar from "./Sidebar.jsx";
+import Navbar from "./Navbar.jsx";
+import api from "../../api/axiosInstance.js";
+import cmsService from "../../services/super-admin/cmsService.js"
 import {
   BookOpen,
   Search,
@@ -35,6 +35,8 @@ import {
   Loader2,
   BookCopy,
   CircleHelp,
+  Archive,
+  Calculator,
 } from "lucide-react";
 
 /* =========================================================
@@ -132,11 +134,33 @@ const EMPTY_QUESTION_FORM = {
   explanation: "",
 };
 
+const EMPTY_BAND_FORM = {
+  section: "LISTENING",
+  category: "ACADEMIC",
+  payload: "",
+};
+
+// Adjust this template to match your backend band-conversion DTO.
+const BAND_TEMPLATE = `{
+  "section": "LISTENING",
+  "category": "ACADEMIC",
+  "mappings": [
+    { "minScore": 39, "maxScore": 40, "band": 9 },
+    { "minScore": 37, "maxScore": 38, "band": 8.5 }
+  ]
+}`;
+
 /* =========================================================
    HELPERS
 ========================================================= */
 
 const getData = (response) => response?.data?.data ?? response?.data ?? {};
+
+// For responses coming from cmsService (it already returns response.data)
+const unwrap = (response, key) => {
+  const data = response?.data ?? response ?? {};
+  return data?.[key] || data;
+};
 
 const getErrorMessage = (error) =>
   error?.response?.data?.message ||
@@ -191,6 +215,9 @@ const parseJsonField = (value, fallback = {}) => {
     throw new Error("Please enter valid JSON.");
   }
 };
+
+const stringifyJson = (value) =>
+  value ? JSON.stringify(value, null, 2) : "";
 
 /* =========================================================
    DARK MODE STYLES
@@ -380,6 +407,9 @@ function FormField({ label, children, className = "" }) {
 const inputClass =
   "w-full rounded-xl border border-[#E4EAF8] bg-white px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-[#3B3441] dark:bg-[#19171E] dark:text-white dark:focus:ring-blue-950";
 
+const outlineButtonClass =
+  "flex items-center justify-center gap-2 rounded-xl border border-[#E4EAF8] px-3 py-2 text-xs font-semibold text-[#506995] transition hover:bg-slate-50 dark:border-[#3B3441] dark:text-[#B0A5BD] dark:hover:bg-[#302A36]";
+
 function Modal({ title, description, onClose, children, footer }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#10265F]/50 p-3 backdrop-blur-sm sm:p-5">
@@ -438,6 +468,7 @@ export default function CambridgeContentManager() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [validationResult, setValidationResult] = useState(null);
+  const [bandResult, setBandResult] = useState(null);
 
   const [modalType, setModalType] = useState(null);
   const [form, setForm] = useState({});
@@ -541,7 +572,14 @@ export default function CambridgeContentManager() {
       );
 
       const data = getData(response);
-      setVersionDetails(data.version || data);
+
+      console.log("VERSION RESPONSE:", response.data);   // ← add this
+      console.log("PARSED:", data);
+
+
+      setVersionDetails(
+        data.version && typeof data.version === "object" ? data.version : data
+      );
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -605,7 +643,111 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE BOOK
+     EDIT PREFILL HELPERS
+  ------------------------------------------------------- */
+
+  const openEditBook = () =>
+    openModal("book", {
+      id: selectedBook.id,
+      title: selectedBook.title || "",
+      bookNumber: selectedBook.bookNumber || "",
+      publisher: selectedBook.publisher || "",
+      category: selectedBook.category || "ACADEMIC",
+      isActive: Boolean(selectedBook.isActive),
+    });
+
+  const openEditTest = () =>
+    openModal("test", {
+      id: selectedTest.id,
+      title: selectedTest.title || "",
+      testNumber: selectedTest.testNumber ?? 1,
+      category: selectedTest.category || "ACADEMIC",
+    });
+
+  const openEditModule = async (module) => {
+    try {
+      const response = await cmsService.getTestModuleById(module.id);
+      const item = unwrap(response, "module");
+
+      openModal("module", {
+        id: item.id || module.id,
+        section: item.section || module.section,
+        position: item.position ?? 1,
+        durationSeconds: item.durationSeconds ?? 1800,
+        instructions: stringifyJson(item.instructions),
+      });
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    }
+  };
+
+  const openEditPart = async (part) => {
+    try {
+      const response = await cmsService.getTestPartById(part.id);
+      const item = unwrap(response, "part");
+
+      openModal("part", {
+        id: item.id || part.id,
+        moduleId: item.testModuleId,
+        title: item.title || "",
+        position: item.position ?? 1,
+        audioAssetKey: item.audioAssetKey || "",
+        instructions: stringifyJson(item.instructions),
+      });
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    }
+  };
+
+  const openEditGroup = async (group) => {
+    try {
+      const response = await cmsService.getQuestionGroupById(group.id);
+      const item = unwrap(response, "group");
+
+      openModal("group", {
+        id: item.id || group.id,
+        partId: item.testPartId,
+        title: item.title || "",
+        position: item.position ?? 1,
+        passage:
+          typeof item.passage === "string"
+            ? item.passage
+            : stringifyJson(item.passage),
+        instructions: stringifyJson(item.instructions),
+      });
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    }
+  };
+
+  const openEditQuestion = async (question) => {
+    try {
+      const response = await cmsService.getQuestionById(question.id);
+      const item = unwrap(response, "question");
+      const key = item.answerKey || question.answerKey || null;
+
+      openModal("question", {
+        id: item.id || question.id,
+        partId: item.testPartId,
+        groupId: item.questionGroupId || "",
+        questionNumber: item.questionNumber ?? question.questionNumber,
+        questionType: item.questionType || question.questionType,
+        position: item.position ?? 1,
+        marks: item.marks ?? 1,
+        content: JSON.stringify(item.content ?? {}, null, 2),
+        answerKeyId: key?.id || "",
+        acceptedAnswers: key?.acceptedAnswers
+          ? JSON.stringify(key.acceptedAnswers, null, 2)
+          : "",
+        explanation: key?.explanation?.text || "",
+      });
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    }
+  };
+
+  /* -------------------------------------------------------
+     CREATE / UPDATE BOOK
   ------------------------------------------------------- */
 
   const createBook = async () => {
@@ -618,17 +760,33 @@ export default function CambridgeContentManager() {
     setFormError("");
 
     try {
-      await api.post(`${CMS_BASE}/books`, {
+      const payload = {
         title: form.title.trim(),
         bookNumber: form.bookNumber ? Number(form.bookNumber) : undefined,
         publisher: form.publisher?.trim() || undefined,
         category: form.category || undefined,
         isActive: Boolean(form.isActive),
-      });
+      };
+
+      const isEdit = Boolean(form.id);
+
+      if (isEdit) {
+        await cmsService.updateBook(form.id, payload);
+      } else {
+        await api.post(`${CMS_BASE}/books`, payload);
+      }
 
       closeModal();
-      setSuccess("Book created successfully.");
+      setSaving(false);
       await loadBooks();
+
+      if (isEdit) {
+        await openBook(selectedBook);
+      }
+
+      setSuccess(
+        isEdit ? "Book updated successfully." : "Book created successfully."
+      );
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
     } finally {
@@ -637,7 +795,7 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE TEST
+     CREATE / UPDATE TEST
   ------------------------------------------------------- */
 
   const createTest = async () => {
@@ -650,17 +808,61 @@ export default function CambridgeContentManager() {
     setFormError("");
 
     try {
-      await api.post(`${CMS_BASE}/books/${selectedBook.id}/tests`, {
+      const payload = {
         title: form.title.trim(),
         testNumber: Number(form.testNumber),
         category: form.category || selectedBook.category || "ACADEMIC",
-      });
+      };
+
+      const isEdit = Boolean(form.id);
+
+      if (isEdit) {
+        await cmsService.updateTest(form.id, payload);
+      } else {
+        await api.post(`${CMS_BASE}/books/${selectedBook.id}/tests`, payload);
+      }
 
       closeModal();
-      setSuccess("Test created successfully.");
-      await openBook(selectedBook);
+      setSaving(false);
+
+      if (isEdit) {
+        await openTest(selectedTest);
+      } else {
+        await openBook(selectedBook);
+      }
+
+      setSuccess(
+        isEdit ? "Test updated successfully." : "Test created successfully."
+      );
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* -------------------------------------------------------
+     ARCHIVE TEST
+  ------------------------------------------------------- */
+
+  const archiveCurrentTest = async () => {
+    const confirmed = window.confirm(
+      "Archive this test? It will no longer be available for new attempts."
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await cmsService.archiveTest(selectedTest.id);
+      setSaving(false);
+      await openBook(selectedBook);
+      setSuccess("Test archived successfully.");
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
@@ -688,7 +890,7 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE MODULE
+     CREATE / UPDATE MODULE
   ------------------------------------------------------- */
 
   const createModule = async () => {
@@ -698,16 +900,30 @@ export default function CambridgeContentManager() {
     try {
       const instructions = parseJsonField(form.instructions, {});
 
-      await api.post(`${CMS_BASE}/test-modules`, {
-        testVersionId: selectedVersion.id,
+      const payload = {
         section: form.section,
         position: Number(form.position),
         durationSeconds: Number(form.durationSeconds),
         instructions,
-      });
+      };
+
+      const isEdit = Boolean(form.id);
+
+      if (isEdit) {
+        await cmsService.updateTestModule(form.id, payload);
+      } else {
+        await api.post(`${CMS_BASE}/test-modules`, {
+          testVersionId: selectedVersion.id,
+          ...payload,
+        });
+      }
 
       closeModal();
-      setSuccess(`${formatSection(form.section)} module created.`);
+      setSuccess(
+        isEdit
+          ? `${formatSection(form.section)} module updated.`
+          : `${formatSection(form.section)} module created.`
+      );
       await openVersion(selectedVersion);
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
@@ -717,7 +933,7 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE PART
+     CREATE / UPDATE PART
   ------------------------------------------------------- */
 
   const createPart = async () => {
@@ -727,16 +943,28 @@ export default function CambridgeContentManager() {
     try {
       const instructions = parseJsonField(form.instructions, null);
 
-      await api.post(`${CMS_BASE}/test-parts`, {
-        testModuleId: form.moduleId,
-        title: form.title.trim(),
+      const payload = {
+        title: (form.title || "").trim(),
         position: Number(form.position),
         instructions,
         audioAssetKey: form.audioAssetKey?.trim() || null,
-      });
+      };
+
+      const isEdit = Boolean(form.id);
+
+      if (isEdit) {
+        await cmsService.updateTestPart(form.id, payload);
+      } else {
+        await api.post(`${CMS_BASE}/test-parts`, {
+          testModuleId: form.moduleId,
+          ...payload,
+        });
+      }
 
       closeModal();
-      setSuccess("Part created successfully.");
+      setSuccess(
+        isEdit ? "Part updated successfully." : "Part created successfully."
+      );
       await openVersion(selectedVersion);
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
@@ -746,7 +974,7 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE QUESTION GROUP
+     CREATE / UPDATE QUESTION GROUP
   ------------------------------------------------------- */
 
   const createGroup = async () => {
@@ -757,16 +985,30 @@ export default function CambridgeContentManager() {
       const instructions = parseJsonField(form.instructions, null);
       const passage = parseJsonField(form.passage, null);
 
-      await api.post(`${CMS_BASE}/question-groups`, {
-        testPartId: form.partId,
+      const payload = {
         title: form.title?.trim() || null,
         position: Number(form.position),
         instructions,
         passage,
-      });
+      };
+
+      const isEdit = Boolean(form.id);
+
+      if (isEdit) {
+        await cmsService.updateQuestionGroup(form.id, payload);
+      } else {
+        await api.post(`${CMS_BASE}/question-groups`, {
+          testPartId: form.partId,
+          ...payload,
+        });
+      }
 
       closeModal();
-      setSuccess("Question group created successfully.");
+      setSuccess(
+        isEdit
+          ? "Question group updated successfully."
+          : "Question group created successfully."
+      );
       await openVersion(selectedVersion);
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
@@ -776,7 +1018,7 @@ export default function CambridgeContentManager() {
   };
 
   /* -------------------------------------------------------
-     CREATE QUESTION + ANSWER KEY
+     CREATE / UPDATE QUESTION + ANSWER KEY
   ------------------------------------------------------- */
 
   const createQuestion = async () => {
@@ -790,38 +1032,141 @@ export default function CambridgeContentManager() {
         throw new Error("Question content must be a valid JSON object.");
       }
 
-      const questionResponse = await api.post(`${CMS_BASE}/questions`, {
-        testPartId: form.partId,
+      const questionPayload = {
         questionGroupId: form.groupId || null,
         questionNumber: Number(form.questionNumber),
         questionType: form.questionType,
         content,
         marks: Number(form.marks),
         position: Number(form.position),
-      });
+      };
 
-      const questionData = getData(questionResponse);
-      const question = questionData.question || questionData;
+      const isEdit = Boolean(form.id);
+      let questionId = form.id;
+
+      if (isEdit) {
+        await cmsService.updateQuestion(form.id, questionPayload);
+      } else {
+        const questionResponse = await api.post(`${CMS_BASE}/questions`, {
+          testPartId: form.partId,
+          ...questionPayload,
+        });
+
+        const questionData = getData(questionResponse);
+        const question = questionData.question || questionData;
+        questionId = question.id;
+      }
 
       if (form.acceptedAnswers?.trim()) {
-        const acceptedAnswers = parseJsonField(
-          form.acceptedAnswers,
-          null
-        );
+        const acceptedAnswers = parseJsonField(form.acceptedAnswers, null);
 
-        await api.post(`${CMS_BASE}/answer-keys`, {
-          questionId: question.id,
+        const keyPayload = {
           acceptedAnswers,
           explanation: form.explanation?.trim()
             ? { text: form.explanation.trim() }
             : null,
           markingRules: null,
-        });
+        };
+
+        if (form.answerKeyId) {
+          await cmsService.updateAnswerKey(form.answerKeyId, keyPayload);
+        } else {
+          await api.post(`${CMS_BASE}/answer-keys`, {
+            questionId,
+            ...keyPayload,
+          });
+        }
       }
 
       closeModal();
-      setSuccess("Question created successfully.");
+      setSuccess(
+        isEdit
+          ? "Question updated successfully."
+          : "Question created successfully."
+      );
       await openVersion(selectedVersion);
+    } catch (requestError) {
+      setFormError(getErrorMessage(requestError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* -------------------------------------------------------
+     BAND CONVERSION
+  ------------------------------------------------------- */
+
+  const submitBandConversion = async () => {
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const payload = parseJsonField(form.payload, null);
+
+      if (!payload || typeof payload !== "object") {
+        throw new Error("Band conversion must be a valid JSON object.");
+      }
+
+      const response = await cmsService.createBandConversion({
+        ...payload,
+        section: payload.section || form.section,
+        category: payload.category || form.category,
+      });
+
+      setBandResult(unwrap(response, "bandConversion"));
+      closeModal();
+      setSuccess("Band conversion saved successfully.");
+    } catch (requestError) {
+      setFormError(getErrorMessage(requestError));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const lookupBandConversion = async () => {
+    const id = window.prompt("Enter band conversion ID");
+
+    if (!id?.trim()) return;
+
+    try {
+      const response = await cmsService.getBandConversionById(id.trim());
+      setBandResult(unwrap(response, "bandConversion"));
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    }
+  };
+
+  /* -------------------------------------------------------
+     BULK IMPORT
+  ------------------------------------------------------- */
+
+  const handleImportFile = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => updateForm("json", String(reader.result || ""));
+    reader.readAsText(file);
+  };
+
+  const submitBulkImport = async () => {
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const payload = parseJsonField(form.json, null);
+
+      if (!payload) {
+        throw new Error("Paste or upload the import JSON first.");
+      }
+
+      await cmsService.bulkImportTest(payload);
+
+      closeModal();
+      setSaving(false);
+      await loadBooks();
+      setSuccess("Bulk import completed successfully.");
     } catch (requestError) {
       setFormError(getErrorMessage(requestError));
     } finally {
@@ -944,6 +1289,54 @@ export default function CambridgeContentManager() {
 
   const moduleCount = modules.length;
 
+  const isDraft = selectedVersion?.status === "DRAFT";
+
+  /* -------------------------------------------------------
+     QUESTION ROW RENDERER
+  ------------------------------------------------------- */
+
+  const renderQuestionRow = (question) => (
+  <div
+    key={question.id}
+    onClick={() => openEditQuestion(question)}
+    className="mt-2 flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-lg border-t border-slate-100 px-1 pt-2 transition hover:bg-[#F8FAFF] dark:border-[#3B3441] dark:hover:bg-[#29242F]"
+  >
+    <span className="text-[10px] font-semibold text-[#10265F] dark:text-white">
+      Question {question.questionNumber}
+    </span>
+
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] text-[#8A9ABB] dark:text-[#B0A5BD]">
+        {formatSection(question.questionType)}
+      </span>
+
+      {question.answerKey || question.hasAnswerKey ? (
+        <span title="Answer key added">
+          <CheckCircle2 size={13} className="text-emerald-500" />
+        </span>
+      ) : (
+        <span title="No answer key">
+          <AlertCircle size={13} className="text-amber-500" />
+        </span>
+      )}
+
+      <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+        {isDraft ? (
+          <>
+            <Pencil size={12} className="mr-1 inline" />
+            Edit
+          </>
+        ) : (
+          <>
+            <Eye size={12} className="mr-1 inline" />
+            View
+          </>
+        )}
+      </span>
+    </div>
+  </div>
+);
+
   /* =========================================================
      RENDER
   ========================================================= */
@@ -1013,14 +1406,36 @@ export default function CambridgeContentManager() {
             </div>
 
             {!selectedBook && (
-              <button
-                type="button"
-                onClick={() => openModal("book", EMPTY_BOOK_FORM)}
-                className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
-              >
-                <Plus size={17} />
-                Add Book
-              </button>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openModal("band", { ...EMPTY_BAND_FORM, payload: BAND_TEMPLATE })
+                  }
+                  className="flex items-center gap-2 rounded-xl border border-[#E4EAF8] bg-white px-3 py-3 text-xs font-semibold text-[#506995] transition hover:bg-slate-50 dark:border-[#3B3441] dark:bg-[#211E27] dark:text-[#B0A5BD]"
+                >
+                  <Calculator size={15} />
+                  Band conversion
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openModal("bulk", { json: "" })}
+                  className="flex items-center gap-2 rounded-xl border border-[#E4EAF8] bg-white px-3 py-3 text-xs font-semibold text-[#506995] transition hover:bg-slate-50 dark:border-[#3B3441] dark:bg-[#211E27] dark:text-[#B0A5BD]"
+                >
+                  <Upload size={15} />
+                  Bulk import
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openModal("book", EMPTY_BOOK_FORM)}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#FF2454] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
+                >
+                  <Plus size={17} />
+                  Add Book
+                </button>
+              </div>
             )}
           </section>
 
@@ -1044,6 +1459,33 @@ export default function CambridgeContentManager() {
                 <X size={16} />
               </button>
             </div>
+          )}
+
+          {/* BAND CONVERSION RESULT */}
+
+          {bandResult && (
+            <section className="rounded-2xl border border-[#E9EEFA] bg-white p-4 shadow-sm sm:p-5 dark:border-[#3B3441] dark:bg-[#211E27]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-[#10265F] dark:text-white">
+                  Band conversion
+                </h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={lookupBandConversion}
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400"
+                  >
+                    Look up by ID
+                  </button>
+                  <button type="button" onClick={() => setBandResult(null)} aria-label="Close band conversion">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+              <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[#F8FAFF] p-3 text-[11px] text-[#506995] dark:bg-[#19171E] dark:text-[#B0A5BD]">
+                {JSON.stringify(bandResult, null, 2)}
+              </pre>
+            </section>
           )}
 
           {/* =================================================
@@ -1276,7 +1718,17 @@ export default function CambridgeContentManager() {
                     </p>
                   </div>
 
-                  <StatusBadge status={selectedBook.isActive ? "PUBLISHED" : "ARCHIVED"} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openEditBook}
+                      className={outlineButtonClass}
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </button>
+                    <StatusBadge status={selectedBook.isActive ? "PUBLISHED" : "ARCHIVED"} />
+                  </div>
                 </div>
               </section>
 
@@ -1390,6 +1842,26 @@ export default function CambridgeContentManager() {
                     <p className="mt-1 text-xs text-[#8A9ABB] dark:text-[#B0A5BD]">
                       Test Number {selectedTest.testNumber} · {formatSection(selectedTest.category)}
                     </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={openEditTest}
+                      className={outlineButtonClass}
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={archiveCurrentTest}
+                      disabled={saving}
+                      className="flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    >
+                      <Archive size={14} />
+                      Archive
+                    </button>
                   </div>
                 </div>
               </section>
@@ -1632,19 +2104,29 @@ export default function CambridgeContentManager() {
                                 </div>
 
                                 {selectedVersion.status === "DRAFT" && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openModal("part", {
-                                        ...EMPTY_PART_FORM,
-                                        moduleId: module.id,
-                                      })
-                                    }
-                                    className="flex items-center justify-center gap-2 rounded-xl border border-[#E4EAF8] px-3 py-2 text-xs font-semibold text-[#506995] hover:bg-slate-50 dark:border-[#3B3441] dark:text-[#B0A5BD] dark:hover:bg-[#302A36]"
-                                  >
-                                    <Plus size={14} />
-                                    Add Part
-                                  </button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModule(module)}
+                                      className={outlineButtonClass}
+                                    >
+                                      <Pencil size={14} />
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openModal("part", {
+                                          ...EMPTY_PART_FORM,
+                                          moduleId: module.id,
+                                        })
+                                      }
+                                      className={outlineButtonClass}
+                                    >
+                                      <Plus size={14} />
+                                      Add Part
+                                    </button>
+                                  </div>
                                 )}
                               </div>
 
@@ -1671,6 +2153,14 @@ export default function CambridgeContentManager() {
 
                                           {selectedVersion.status === "DRAFT" && (
                                             <div className="flex flex-wrap gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => openEditPart(part)}
+                                                className="rounded-lg border border-[#E4EAF8] px-2.5 py-2 text-[10px] font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]"
+                                              >
+                                                <Pencil size={12} className="mr-1 inline" />
+                                                Edit
+                                              </button>
                                               <button
                                                 type="button"
                                                 onClick={() =>
@@ -1719,20 +2209,30 @@ export default function CambridgeContentManager() {
                                                 {group.title || `Group ${group.position}`}
                                               </h5>
                                               {selectedVersion.status === "DRAFT" && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    openModal("question", {
-                                                      ...EMPTY_QUESTION_FORM,
-                                                      partId: part.id,
-                                                      groupId: group.id,
-                                                    })
-                                                  }
-                                                  className="text-[10px] font-semibold text-blue-600 dark:text-blue-400"
-                                                >
-                                                  <Plus size={12} className="mr-1 inline" />
-                                                  Add Question
-                                                </button>
+                                                <div className="flex items-center gap-3">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openEditGroup(group)}
+                                                    className="text-[10px] font-semibold text-[#506995] dark:text-[#B0A5BD]"
+                                                  >
+                                                    <Pencil size={12} className="mr-1 inline" />
+                                                    Edit group
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      openModal("question", {
+                                                        ...EMPTY_QUESTION_FORM,
+                                                        partId: part.id,
+                                                        groupId: group.id,
+                                                      })
+                                                    }
+                                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400"
+                                                  >
+                                                    <Plus size={12} className="mr-1 inline" />
+                                                    Add Question
+                                                  </button>
+                                                </div>
                                               )}
                                             </div>
 
@@ -1744,21 +2244,18 @@ export default function CambridgeContentManager() {
                                               </pre>
                                             )}
 
-                                            {getArray(group.questions).map((question) => (
-                                              <div
-                                                key={question.id}
-                                                className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-[#3B3441]"
-                                              >
-                                                <span className="text-[10px] font-semibold text-[#10265F] dark:text-white">
-                                                  Question {question.questionNumber}
-                                                </span>
-                                                <span className="text-[10px] text-[#8A9ABB] dark:text-[#B0A5BD]">
-                                                  {formatSection(question.questionType)}
-                                                </span>
-                                              </div>
-                                            ))}
+                                            {getArray(group.questions).map(renderQuestionRow)}
                                           </div>
                                         ))}
+
+                                        {questions.length > 0 && (
+                                          <div className="mt-3 rounded-lg border border-[#E9EEFA] bg-white p-3 dark:border-[#3B3441] dark:bg-[#211E27]">
+                                            <h5 className="text-xs font-bold text-[#10265F] dark:text-white">
+                                              Direct questions
+                                            </h5>
+                                            {questions.map(renderQuestionRow)}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -1785,11 +2282,10 @@ export default function CambridgeContentManager() {
                           </p>
                         </div>
                         <span
-                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                            validationResult.valid
-                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                              : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                          }`}
+                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${validationResult.valid
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
+                            }`}
                         >
                           {validationResult.valid ? "VALID" : "NEEDS ATTENTION"}
                         </span>
@@ -1874,8 +2370,12 @@ export default function CambridgeContentManager() {
 
       {modalType === "book" && (
         <Modal
-          title="Create Cambridge Book"
-          description="Add a book to your Cambridge content catalog."
+          title={form.id ? "Edit Cambridge Book" : "Create Cambridge Book"}
+          description={
+            form.id
+              ? "Update this book's details."
+              : "Add a book to your Cambridge content catalog."
+          }
           onClose={closeModal}
           footer={
             <>
@@ -1883,7 +2383,7 @@ export default function CambridgeContentManager() {
                 Cancel
               </button>
               <button type="button" onClick={createBook} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">
-                {saving ? "Saving..." : "Create Book"}
+                {saving ? "Saving..." : form.id ? "Save Changes" : "Create Book"}
               </button>
             </>
           }
@@ -1914,13 +2414,17 @@ export default function CambridgeContentManager() {
 
       {modalType === "test" && (
         <Modal
-          title="Create Test"
-          description={`Add a test to ${getBookName(selectedBook)}.`}
+          title={form.id ? "Edit Test" : "Create Test"}
+          description={
+            form.id
+              ? `Update this test in ${getBookName(selectedBook)}.`
+              : `Add a test to ${getBookName(selectedBook)}.`
+          }
           onClose={closeModal}
           footer={
             <>
               <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
-              <button type="button" onClick={createTest} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Create Test"}</button>
+              <button type="button" onClick={createTest} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : form.id ? "Save Changes" : "Create Test"}</button>
             </>
           }
         >
@@ -1962,19 +2466,28 @@ export default function CambridgeContentManager() {
 
       {modalType === "module" && (
         <Modal
-          title="Create Test Module"
-          description="Add one IELTS section to this test version."
+          title={form.id ? "Edit Test Module" : "Create Test Module"}
+          description={
+            form.id
+              ? "Update this IELTS section."
+              : "Add one IELTS section to this test version."
+          }
           onClose={closeModal}
           footer={
             <>
               <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
-              <button type="button" onClick={createModule} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Create Module"}</button>
+              <button type="button" onClick={createModule} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : form.id ? "Save Changes" : "Create Module"}</button>
             </>
           }
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="IELTS Section">
-              <select className={inputClass} value={form.section || "LISTENING"} onChange={(e) => updateForm("section", e.target.value)}>
+              <select
+                className={inputClass}
+                value={form.section || "LISTENING"}
+                disabled={Boolean(form.id)}
+                onChange={(e) => updateForm("section", e.target.value)}
+              >
                 {SECTIONS.map((section) => <option key={section} value={section}>{formatSection(section)}</option>)}
               </select>
             </FormField>
@@ -1994,13 +2507,17 @@ export default function CambridgeContentManager() {
 
       {modalType === "part" && (
         <Modal
-          title="Create Test Part"
-          description="Add a part to the selected IELTS module."
+          title={form.id ? "Edit Test Part" : "Create Test Part"}
+          description={
+            form.id
+              ? "Update this part of the IELTS module."
+              : "Add a part to the selected IELTS module."
+          }
           onClose={closeModal}
           footer={
             <>
               <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
-              <button type="button" onClick={createPart} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Create Part"}</button>
+              <button type="button" onClick={createPart} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : form.id ? "Save Changes" : "Create Part"}</button>
             </>
           }
         >
@@ -2024,13 +2541,17 @@ export default function CambridgeContentManager() {
 
       {modalType === "group" && (
         <Modal
-          title="Create Question Group"
-          description="Add a passage or group of related questions."
+          title={form.id ? "Edit Question Group" : "Create Question Group"}
+          description={
+            form.id
+              ? "Update this passage or group of related questions."
+              : "Add a passage or group of related questions."
+          }
           onClose={closeModal}
           footer={
             <>
               <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
-              <button type="button" onClick={createGroup} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Create Group"}</button>
+              <button type="button" onClick={createGroup} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : form.id ? "Save Changes" : "Create Group"}</button>
             </>
           }
         >
@@ -2054,13 +2575,17 @@ export default function CambridgeContentManager() {
 
       {modalType === "question" && (
         <Modal
-          title="Create Question"
-          description="Create a question and optionally attach its answer key."
+          title={form.id ? "Edit Question" : "Create Question"}
+          description={
+            form.id
+              ? "Update this question and its answer key."
+              : "Create a question and optionally attach its answer key."
+          }
           onClose={closeModal}
           footer={
             <>
               <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
-              <button type="button" onClick={createQuestion} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Create Question"}</button>
+              <button type="button" onClick={createQuestion} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : form.id ? "Save Changes" : "Create Question"}</button>
             </>
           }
         >
@@ -2088,6 +2613,61 @@ export default function CambridgeContentManager() {
             </FormField>
             <FormField label="Explanation (optional)" className="sm:col-span-2">
               <textarea rows={3} className={inputClass} value={form.explanation || ""} onChange={(e) => updateForm("explanation", e.target.value)} placeholder="Explain why the answer is correct..." />
+            </FormField>
+          </div>
+          {formError && <p className="mt-4 text-xs text-rose-600">{formError}</p>}
+        </Modal>
+      )}
+
+      {modalType === "band" && (
+        <Modal
+          title="Create Band Conversion"
+          description="Map raw scores to IELTS band scores."
+          onClose={closeModal}
+          footer={
+            <>
+              <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
+              <button type="button" onClick={submitBandConversion} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : "Save Conversion"}</button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Section">
+              <select className={inputClass} value={form.section || "LISTENING"} onChange={(e) => updateForm("section", e.target.value)}>
+                {["LISTENING", "READING"].map((section) => <option key={section} value={section}>{formatSection(section)}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Category">
+              <select className={inputClass} value={form.category || "ACADEMIC"} onChange={(e) => updateForm("category", e.target.value)}>
+                {CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Conversion JSON" className="sm:col-span-2">
+              <textarea rows={10} className={`${inputClass} font-mono text-xs`} value={form.payload || ""} onChange={(e) => updateForm("payload", e.target.value)} />
+            </FormField>
+          </div>
+          {formError && <p className="mt-4 text-xs text-rose-600">{formError}</p>}
+        </Modal>
+      )}
+
+      {modalType === "bulk" && (
+        <Modal
+          title="Bulk Import Test"
+          description="Upload or paste a full test as JSON."
+          onClose={closeModal}
+          footer={
+            <>
+              <button type="button" onClick={closeModal} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-[#506995] dark:border-[#3B3441] dark:text-[#B0A5BD]">Cancel</button>
+              <button type="button" onClick={submitBulkImport} disabled={saving} className="rounded-xl bg-[#FF2454] px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Importing..." : "Import Test"}</button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <FormField label="JSON File">
+              <input type="file" accept="application/json,.json" onChange={handleImportFile} className={inputClass} />
+            </FormField>
+            <FormField label="Import JSON">
+              <textarea rows={12} className={`${inputClass} font-mono text-xs`} value={form.json || ""} onChange={(e) => updateForm("json", e.target.value)} placeholder='{ "book": { ... }, "test": { ... } }' />
             </FormField>
           </div>
           {formError && <p className="mt-4 text-xs text-rose-600">{formError}</p>}

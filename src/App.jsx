@@ -46,7 +46,7 @@ import InstituteSettings from "./pages/institute/Settings";
 
 // Super Admin Pages
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
-import CambridgeContentManager from "./pages/superadmin/cms/CambridgeContentManager";
+import CambridgeContentManager from "./pages/superadmin/CambridgeContentManager";
 import StudyMaterialCMS from "./pages/superadmin/StudyMaterialCMS";
 import UserInstituteManagement from "./pages/superadmin/UserInstituteManagement";
 import PlansPaymentsRefunds from "./pages/superadmin/PlansPaymentsRefunds";
