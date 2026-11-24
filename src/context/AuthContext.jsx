@@ -1,176 +1,174 @@
-import {
-  createContext,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import toast from "react-hot-toast";
 
-import authService from "../services/authService";
-import {
-  setAccessToken,
-  setSessionExpiredHandler,
-} from "../api/axiosInstance";
+import { createContext, useState, useEffect } from "react";
+import authService, { setToken } from "../services/authService";
 
 const AuthContext = createContext(null);
 
-// The backend returns slightly different user shapes (login, refresh, /auth/me).
-// We make them one shape and remove fields the UI never needs.
-function normalizeUser(user) {
-  if (!user) return null;
-
-  const normalized = { ...user };
-  delete normalized.tokenVersion;
-  normalized.emailVerified = Boolean(
-    user.emailVerifiedAt ?? user.emailVerified
-  );
-
-  return normalized;
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-
-  // true only while we restore the session on the first page load
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  // Restore the session from the refresh cookie when the app starts.
+  // Restore login session on page refresh
   useEffect(() => {
     let cancelled = false;
 
-    // Remove the old insecure token saved by the previous version of the app.
-    try {
-      localStorage.removeItem("equilx_token");
-    } catch {
-      // storage not available, nothing to clean
-    }
+    const initializeAuth = async () => {
+      const token = localStorage.getItem("equilx_token");
 
-    authService
-      .refresh()
-      .then(({ data }) => {
-        if (!cancelled) setUser(normalizeUser(data.user));
-      })
-      .catch(() => {
-        // No valid cookie: the visitor is simply logged out.
-        if (!cancelled) {
-          setAccessToken(null);
-          setUser(null);
-        }
-      })
-      .finally(() => {
+      if (!token) {
         if (!cancelled) setLoading(false);
-      });
+        return;
+      }
+
+      try {
+        setToken(token);
+
+        const response = await authService.getCurrentUser();
+
+        if (!cancelled) {
+          setUser({
+            ...response.data.user,
+            token,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setUser(null);
+          setToken("");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // axiosInstance calls this when the session cannot be renewed anymore.
-  useEffect(() => {
-    setSessionExpiredHandler(() => {
-      setUser(null);
-      toast.error("Your session has expired. Please log in again.", {
-        id: "session-expired", // same id: the toast never shows twice
-      });
-    });
+  // Login with email and password
+  const login = async (email, password) => {
+    setLoading(true);
+    setAuthError(null);
 
-    return () => setSessionExpiredHandler(null);
-  }, []);
+    try {
+      const response = await authService.login(email, password);
 
-  // Shared by login, OTP login and Google login.
-  const completeLogin = useCallback((body) => {
-    const data = body?.data;
-
-    // Staff accounts need a second step (OTP sent by email).
-    if (data?.twoFactorRequired) {
-      return {
-        success: true,
-        twoFactorRequired: true,
-        challengeId: data.challengeId,
-        expiresIn: data.expiresIn,
-      };
-    }
-
-    if (!data?.accessToken || !data?.user) {
-      throw new Error("Invalid response from the server. Please try again.");
-    }
-
-    setAccessToken(data.accessToken);
-    const nextUser = normalizeUser(data.user);
-    setUser(nextUser);
-
-    return {
-      success: true,
-      user: nextUser,
-      isNewUser: Boolean(data.isNewUser),
-    };
-  }, []);
-
-  // Runs an auth request and always returns { success, ... } instead of throwing.
-  const runAuthAction = useCallback(
-    async (action) => {
-      try {
-        return completeLogin(await action());
-      } catch (error) {
+      // OTP verification required
+      if (response.data?.twoFactorRequired) {
         return {
-          success: false,
-          error: error.message || "Unable to continue. Please try again.",
-          code: error.code || null,
-          status: error.status || 0,
+          success: true,
+          twoFactorRequired: true,
+          challengeId: response.data.challengeId,
+          expiresIn: response.data.expiresIn ?? 300,
         };
       }
-    },
-    [completeLogin]
-  );
 
-  const login = useCallback(
-    (email, password) =>
-      runAuthAction(() => authService.login(email, password)),
-    [runAuthAction]
-  );
+      const token = response.data?.accessToken;
+      const userData = response.data?.user;
 
-  const verifyLoginOtp = useCallback(
-    (challengeId, otp) =>
-      runAuthAction(() => authService.verifyLoginOtp(challengeId, otp)),
-    [runAuthAction]
-  );
+      if (!token || !userData) {
+        throw new Error("Invalid login response from server.");
+      }
 
-  const googleLogin = useCallback(
-    (idToken) => runAuthAction(() => authService.googleLogin(idToken)),
-    [runAuthAction]
-  );
+      setToken(token);
+      setUser({
+        ...userData,
+        token,
+      });
 
-  const logout = useCallback(async () => {
+      return {
+        success: true,
+        user: userData,
+      };
+    } catch (error) {
+      setAuthError(error.message);
+
+      return {
+        success: false,
+        error: error.message,
+        code: error.code,
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify login OTP and complete authentication
+  const verifyLoginOtp = async (challengeId, otp) => {
+    setLoading(true);
+    setAuthError(null);
+
+    try {
+      const response = await authService.verifyLoginOtp(
+        challengeId,
+        otp
+      );
+
+      const token = response.data?.accessToken;
+      const userData = response.data?.user;
+
+      if (!token || !userData) {
+        throw new Error("Invalid OTP verification response.");
+      }
+
+      // Save JWT token
+      setToken(token);
+
+      // Update authenticated user
+      setUser({
+        ...userData,
+        token,
+      });
+
+      return {
+        success: true,
+        user: userData,
+      };
+    } catch (error) {
+      setAuthError(error.message);
+
+      return {
+        success: false,
+        error: error.message,
+        code: error.code,
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Logout user
+  const logout = async () => {
     try {
       await authService.logout();
-    } catch {
-      // Even if the server call fails, the user is logged out on this device.
+    } catch (error) {
+      console.error("Logout API error:", error);
     } finally {
-      setAccessToken(null);
+      setToken("");
       setUser(null);
+      setAuthError(null);
     }
-  }, []);
-
-  // useMemo: the value changes only when something really changed,
-  // so pages that use useAuth() do not re-render for no reason.
-  const value = useMemo(
-    () => ({
-      user,
-      role: user?.platformRole || "GUEST",
-      isAuthenticated: Boolean(user),
-      loading,
-      login,
-      verifyLoginOtp,
-      googleLogin,
-      logout,
-    }),
-    [user, loading, login, verifyLoginOtp, googleLogin, logout]
-  );
+  };
 
   return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{
+        user,
+        role: user?.platformRole || "GUEST",
+        isAuthenticated: Boolean(user?.token),
+        loading,
+        authError,
+        login,
+        verifyLoginOtp,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -8,7 +9,6 @@ import OtpInput from "../../components/common/OtpIntput";
 import { useAuth } from "../../context/useAuth";
 import { getHomePath } from "../../utils/getHomePath";
 
-// Errors that retyping cannot fix: the user must log in again.
 const RESTART_CODES = [
   "INVALID_TWO_FACTOR_CHALLENGE",
   "TWO_FACTOR_EXPIRED",
@@ -28,7 +28,6 @@ export default function VerifyLoginOtp() {
   const location = useLocation();
   const { verifyLoginOtp } = useAuth();
 
-  // Sent by the Login page. They are lost on page refresh (this is expected).
   const challengeId = location.state?.challengeId || "";
   const email = location.state?.email || "";
 
@@ -38,15 +37,19 @@ export default function VerifyLoginOtp() {
     location.state?.expiresIn ?? 300
   );
 
-  // Without a challenge there is nothing to verify: go back to login.
   useEffect(() => {
-    if (!challengeId) navigate("/login", { replace: true });
+    if (!challengeId) {
+      navigate("/login", { replace: true });
+    }
   }, [challengeId, navigate]);
 
-  // Countdown of the code lifetime (the backend gives 5 minutes).
   useEffect(() => {
     if (secondsLeft <= 0) return;
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+
+    const timer = setTimeout(() => {
+      setSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
     return () => clearTimeout(timer);
   }, [secondsLeft]);
 
@@ -54,30 +57,49 @@ export default function VerifyLoginOtp() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (loading || expired) return;
 
     const code = otp.join("");
-    if (code.length !== 6) {
-      toast.error("Please enter the complete 6-digit code.");
+
+    if (!/^\d{6}$/.test(code)) {
+      toast.error("Please enter a valid 6-digit OTP.");
+      return;
+    }
+
+    if (typeof verifyLoginOtp !== "function") {
+      toast.error("OTP verification is not configured.");
       return;
     }
 
     setLoading(true);
-    const result = await verifyLoginOtp(challengeId, code);
-    setLoading(false);
 
-    if (!result.success) {
-      toast.error(result.error);
+    try {
+      const result = await verifyLoginOtp(challengeId, code);
 
-      if (RESTART_CODES.includes(result.code)) {
-        navigate("/login", { replace: true });
-      } else {
-        setOtp(emptyOtp());
+      if (!result.success) {
+        toast.error(result.error || "OTP verification failed.");
+
+        if (RESTART_CODES.includes(result.code)) {
+          navigate("/login", { replace: true });
+        } else {
+          setOtp(emptyOtp());
+        }
+
+        return;
       }
-      return;
-    }
 
-    navigate(getHomePath(result.user), { replace: true });
+      toast.success("Login verified successfully!");
+
+      navigate(getHomePath(result.user), {
+        replace: true,
+      });
+    } catch (error) {
+      toast.error(error.message || "Something went wrong.");
+      setOtp(emptyOtp());
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!challengeId) return null;
@@ -93,7 +115,9 @@ export default function VerifyLoginOtp() {
               <ShieldCheck size={30} />
             </div>
 
-            <h1 className="text-2xl font-bold">Verify it&apos;s you</h1>
+            <h1 className="text-2xl font-bold">
+              Verify it&apos;s you
+            </h1>
 
             <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
               For your security, we sent a 6-digit code to your email
@@ -101,7 +125,9 @@ export default function VerifyLoginOtp() {
             </p>
 
             {email && (
-              <strong className="block text-rose-500 mt-2 break-all">{email}</strong>
+              <strong className="block text-rose-500 mt-2 break-all">
+                {email}
+              </strong>
             )}
           </div>
 
@@ -115,7 +141,9 @@ export default function VerifyLoginOtp() {
 
             <p
               className={`text-xs text-center ${
-                expired ? "text-red-500" : "text-[var(--text-muted)]"
+                expired
+                  ? "text-red-500"
+                  : "text-[var(--text-muted)]"
               }`}
             >
               {expired

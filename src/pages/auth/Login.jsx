@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
-import { GoogleLogin } from "@react-oauth/google";
+
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/useAuth";
+import React, { useState } from "react";
 
 import {
   Mail,
@@ -18,128 +18,76 @@ import {
 } from "lucide-react";
 
 import AuthNavbar from "../../components/common/AuthNavbar";
-import { useAuth } from "../../context/useAuth";
-import authService from "../../services/authService";
-import { getErrorMessage } from "../../utils/getErrorMessage";
-import { getHomePath } from "../../utils/getHomePath";
 
 export default function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, googleLogin } = useAuth();
+  const { login } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ email: "", password: "" });
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
   const [loading, setLoading] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  // Show a message sent by another page (for example after email verification).
-  useEffect(() => {
-    const message = location.state?.message;
-    if (!message) return;
-
-    toast.success(message, { id: "login-message" });
-    navigate(location.pathname, { replace: true, state: null });
-  }, [location, navigate]);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setNeedsVerification(false);
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (loading) return;
+    setError("");
 
-    const email = formData.email.trim();
-
-    if (!email || !formData.password) {
-      toast.error("Please enter your email and password.");
+    if (!formData.email || !formData.password) {
+      setError("Please enter your email and password.");
       return;
     }
 
     setLoading(true);
-    const result = await login(email, formData.password);
-    setLoading(false);
 
-    if (!result.success) {
-      toast.error(result.error);
-      setNeedsVerification(
-        result.status === 403 && /verify your email/i.test(result.error)
+    try {
+      const result = await login(
+        formData.email.trim(),
+        formData.password
       );
-      return;
-    }
-
-    // Staff accounts must enter the code sent to their email.
-    if (result.twoFactorRequired) {
-      navigate("/verify-login-otp", {
-        state: {
-          challengeId: result.challengeId,
-          expiresIn: result.expiresIn,
-          email,
-        },
-      });
-      return;
-    }
-
-    navigate(getHomePath(result.user), { replace: true });
-  };
-
-  // For users who registered but never verified their email:
-  // send a fresh code, then open the verification page.
-  const handleVerifyNow = async () => {
-    const email = formData.email.trim();
-
-    try {
-      await authService.resendOtp(email);
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-      return;
-    }
-
-    navigate("/verify-email", { state: { email } });
-  };
-
-  const handleGoogleSuccess = async (credentialResponse) => {
-    if (googleLoading) return;
-
-    const idToken = credentialResponse?.credential;
-
-    if (!idToken) {
-      toast.error("Google sign-in did not return an ID token.");
-      return;
-    }
-
-    setGoogleLoading(true);
-
-    try {
-      const result = await googleLogin(idToken);
 
       if (!result.success) {
-        toast.error(result.error || "Google login failed.");
-        return;
+        throw new Error(result.error);
       }
 
+      // Staff login may require OTP verification
       if (result.twoFactorRequired) {
         navigate("/verify-login-otp", {
           state: {
             challengeId: result.challengeId,
-            expiresIn: result.expiresIn,
           },
         });
         return;
       }
 
-      navigate(getHomePath(result.user), { replace: true });
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+      const role = result.user?.platformRole;
 
-  const handleGoogleError = () => {
-    toast.error("Google sign-in was unsuccessful. Please try again.");
+      // Super Admin navigation
+      if (role === "SUPER_ADMIN") {
+        navigate("/superadmin/dashboard");
+      } else {
+        // Default destination until institute membership
+        // based role resolution is connected.
+        navigate("/student/dashboard");
+      }
+    } catch (err) {
+      setError(err.message || "Unable to login. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -339,14 +287,13 @@ export default function Login() {
                 </div>
 
                 {/* Error Message */}
-                {needsVerification && (
-                  <button
-                    type="button"
-                    onClick={handleVerifyNow}
-                    className="w-full text-sm font-semibold text-rose-500 hover:text-rose-700 hover:underline text-left"
+                {error && (
+                  <div
+                    role="alert"
+                    className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm"
                   >
-                    Your email is not verified. Send a new code and verify now
-                  </button>
+                    {error}
+                  </div>
                 )}
 
                 {/* Remember Me */}
@@ -392,15 +339,26 @@ export default function Login() {
                 </div>
 
                 {/* Social Login */}
-                <div className="w-full flex justify-center">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    theme="outline"
-                    size="large"
-                    text="continue_with"
-                    shape="rectangular"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+
+                  <button
+                    type="button"
+                    onClick={() => alert("Google login is not connected yet.")}
+                    className="h-12 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-rose-300 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 hover:text-rose-600 transition-all duration-200"
+                  >
+                    <GoogleIcon />
+                    Google
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => alert("Microsoft login is not connected yet.")}
+                    className="h-12 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-rose-300 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 hover:text-rose-600 transition-all duration-200"
+                  >
+                    <MicrosoftIcon />
+                    Microsoft
+                  </button>
+
                 </div>
 
                 {/* Register Link */}

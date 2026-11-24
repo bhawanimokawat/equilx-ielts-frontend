@@ -1,13 +1,14 @@
-import React from "react";
+
+import React, { useEffect } from "react";
+
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
 } from "react-router-dom";
-import { useEffect } from "react";
+
 import { Toaster } from "react-hot-toast";
-import { toast } from "react-hot-toast";
 
 // Landing Page
 import LandingPage from "./pages/LandingPage";
@@ -24,6 +25,7 @@ import VerifyLoginOtp from "./pages/auth/VerifyLoginOtp";
 import Dashboard from "./pages/student/Dashboard";
 import PracticePage from "./pages/student/PracticePage";
 import MockTestsPage from "./pages/student/MockTestsPage";
+import MockTestAttemptPage from "./pages/student/MockTestAttemptPage";
 import StudyResourcesPage from "./pages/student/StudyResourcesPage";
 import MyProgressPage from "./pages/student/MyProgressPage";
 import AIFeedbackPage from "./pages/student/AIFeedbackPage";
@@ -66,35 +68,65 @@ import Messaging from "./pages/trainer/Messaging";
 import LeadsCRM from "./pages/trainer/LeadsCRM";
 
 export default function App() {
-  useEffect(() => {
-  toast.error("Test error message");
-  toast.success("Test success message");
-}, []);
   return (
     <Router>
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
-          error: { duration: 5000 },
+          error: {
+            duration: 5000,
+          },
         }}
       />
+
       <Routes>
         {/* Landing Page */}
-        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/"
+          element={<LandingPage />}
+        />
 
-        {/* Authentication */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/verify-email" element={<VerifyOTP />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-login-otp" element={<VerifyLoginOtp />} />
+        {/* Authentication Pages */}
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        <Route
+          path="/register"
+          element={<Register />}
+        />
+
+        <Route
+          path="/verify-email"
+          element={<VerifyOTP />}
+        />
+
+        <Route
+          path="/forgot-password"
+          element={<ForgotPassword />}
+        />
+
+        <Route
+          path="/reset-password"
+          element={<ResetPassword />}
+        />
+
+        <Route
+          path="/verify-login-otp"
+          element={<VerifyLoginOtp />}
+        />
 
         {/* Student Portal */}
         <Route
           path="/student"
-          element={<Navigate to="/student/dashboard" replace />}
+          element={
+            <Navigate
+              to="/student/dashboard"
+              replace
+            />
+          }
         />
 
         <Route
@@ -107,9 +139,16 @@ export default function App() {
           element={<PracticePage />}
         />
 
+        {/* Original Mock Tests Page */}
         <Route
           path="/student/mock-tests"
           element={<MockTestsPage />}
+        />
+
+        {/* NEW: IELTS Mock Test Examination Page */}
+        <Route
+          path="/student/mock-test/attempt/:attemptId"
+          element={<MockTestAttemptPage />}
         />
 
         <Route
@@ -119,7 +158,12 @@ export default function App() {
 
         <Route
           path="/student/resources"
-          element={<Navigate to="/student/study-resources" replace />}
+          element={
+            <Navigate
+              to="/student/study-resources"
+              replace
+            />
+          }
         />
 
         <Route
@@ -129,7 +173,12 @@ export default function App() {
 
         <Route
           path="/student/my-progress"
-          element={<Navigate to="/student/progress" replace />}
+          element={
+            <Navigate
+              to="/student/progress"
+              replace
+            />
+          }
         />
 
         <Route
@@ -154,7 +203,12 @@ export default function App() {
 
         <Route
           path="/student/my-plan"
-          element={<Navigate to="/student/plan" replace />}
+          element={
+            <Navigate
+              to="/student/plan"
+              replace
+            />
+          }
         />
 
         <Route
@@ -165,63 +219,123 @@ export default function App() {
         {/* Old Student URLs: keep working */}
         <Route
           path="/dashboard"
-          element={<Navigate to="/student/dashboard" replace />}
+          element={
+            <Navigate
+              to="/student/dashboard"
+              replace
+            />
+          }
         />
 
         <Route
           path="/practice"
-          element={<Navigate to="/student/practice" replace />}
+          element={
+            <Navigate
+              to="/student/practice"
+              replace
+            />
+          }
         />
 
         <Route
           path="/mock-tests"
-          element={<Navigate to="/student/mock-tests" replace />}
+          element={
+            <Navigate
+              to="/student/mock-tests"
+              replace
+            />
+          }
         />
 
         <Route
           path="/study-resources"
-          element={<Navigate to="/student/study-resources" replace />}
+          element={
+            <Navigate
+              to="/student/study-resources"
+              replace
+            />
+          }
         />
 
         <Route
           path="/progress"
-          element={<Navigate to="/student/progress" replace />}
+          element={
+            <Navigate
+              to="/student/progress"
+              replace
+            />
+          }
         />
 
         <Route
           path="/ai-feedback"
-          element={<Navigate to="/student/ai-feedback" replace />}
+          element={
+            <Navigate
+              to="/student/ai-feedback"
+              replace
+            />
+          }
         />
 
         <Route
           path="/live-speaking"
-          element={<Navigate to="/student/live-speaking" replace />}
+          element={
+            <Navigate
+              to="/student/live-speaking"
+              replace
+            />
+          }
         />
 
         <Route
           path="/chat"
-          element={<Navigate to="/student/chat" replace />}
+          element={
+            <Navigate
+              to="/student/chat"
+              replace
+            />
+          }
         />
 
         <Route
           path="/plan"
-          element={<Navigate to="/student/plan" replace />}
+          element={
+            <Navigate
+              to="/student/plan"
+              replace
+            />
+          }
         />
 
         <Route
           path="/my-plan"
-          element={<Navigate to="/student/plan" replace />}
+          element={
+            <Navigate
+              to="/student/plan"
+              replace
+            />
+          }
         />
 
         <Route
           path="/settings"
-          element={<Navigate to="/student/settings" replace />}
+          element={
+            <Navigate
+              to="/student/settings"
+              replace
+            />
+          }
         />
 
         {/* Institute Portal */}
         <Route
           path="/institute"
-          element={<Navigate to="/institute/dashboard" replace />}
+          element={
+            <Navigate
+              to="/institute/dashboard"
+              replace
+            />
+          }
         />
 
         <Route
@@ -229,19 +343,45 @@ export default function App() {
           element={<InstituteDashboardPage />}
         />
 
-        <Route path="/institute/students" element={<Students />} />
-        <Route path="/institute/trainers" element={<Trainers />} />
-        <Route path="/institute/batches" element={<Batches />} />
-        <Route path="/institute/assignments" element={<Assignments />} />
-        <Route path="/institute/reports" element={<ReportsAnalytics />} />
-        <Route path="/institute/crm" element={<CRM />} />
+        <Route
+          path="/institute/students"
+          element={<Students />}
+        />
+
+        <Route
+          path="/institute/trainers"
+          element={<Trainers />}
+        />
+
+        <Route
+          path="/institute/batches"
+          element={<Batches />}
+        />
+
+        <Route
+          path="/institute/assignments"
+          element={<Assignments />}
+        />
+
+        <Route
+          path="/institute/reports"
+          element={<ReportsAnalytics />}
+        />
+
+        <Route
+          path="/institute/crm"
+          element={<CRM />}
+        />
 
         <Route
           path="/institute/study-resources"
           element={<StudyResources />}
         />
 
-        <Route path="/institute/billing" element={<Billing />} />
+        <Route
+          path="/institute/billing"
+          element={<Billing />}
+        />
 
         <Route
           path="/institute/settings"
@@ -251,7 +391,12 @@ export default function App() {
         {/* Super Admin Portal */}
         <Route
           path="/superadmin"
-          element={<Navigate to="/superadmin/dashboard" replace />}
+          element={
+            <Navigate
+              to="/superadmin/dashboard"
+              replace
+            />
+          }
         />
 
         <Route
@@ -302,7 +447,12 @@ export default function App() {
         {/* Trainer Portal */}
         <Route
           path="/trainer"
-          element={<Navigate to="/trainer/dashboard" replace />}
+          element={
+            <Navigate
+              to="/trainer/dashboard"
+              replace
+            />
+          }
         />
 
         <Route
@@ -310,9 +460,15 @@ export default function App() {
           element={<TrainerDashboard />}
         />
 
-        <Route path="/trainer/students" element={<StudentList />} />
+        <Route
+          path="/trainer/students"
+          element={<StudentList />}
+        />
 
-        <Route path="/trainer/reports" element={<StudentReports />} />
+        <Route
+          path="/trainer/reports"
+          element={<StudentReports />}
+        />
 
         <Route
           path="/trainer/student-reports"
@@ -334,11 +490,26 @@ export default function App() {
           element={<LiveSpeakingTest />}
         />
 
-        <Route path="/trainer/messaging" element={<Messaging />} />
-        <Route path="/trainer/leads" element={<LeadsCRM />} />
+        <Route
+          path="/trainer/messaging"
+          element={<Messaging />}
+        />
+
+        <Route
+          path="/trainer/leads"
+          element={<LeadsCRM />}
+        />
 
         {/* Unknown Routes */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/"
+              replace
+            />
+          }
+        />
       </Routes>
     </Router>
   );

@@ -12,7 +12,7 @@ import {
 
 import { Link } from "react-router-dom";
 import AuthNavbar from "../../components/common/AuthNavbar";
-import authService from "../../services/authService1";
+import authService from "../../services/authService";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");

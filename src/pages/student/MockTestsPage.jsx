@@ -371,37 +371,59 @@ export default function MockTestsPage() {
   // API: START MOCK TEST
   // =====================================================
 
-  const continueTest = async () => {
-    if (!testDetails) return;
+  
+const continueTest = async () => {
+  if (!testDetails || starting) return;
 
-    const versionId = testDetails.publishedVersion?.id;
+  const versionId = testDetails.publishedVersion?.id;
 
-    if (!versionId) {
-      setStartError("Published test version is not available.");
-      return;
+  if (!versionId) {
+    setStartError("Published test version is not available.");
+    return;
+  }
+
+  try {
+    setStarting(true);
+    setStartError("");
+
+    // Start the real mock test using existing backend API
+    const response = await mockService.startTest(versionId);
+    const data = getData(response);
+
+    // Support both direct and nested attempt responses
+    const attemptId = data?.attempt?.id ?? data?.id;
+
+    if (!attemptId) {
+      throw new Error(
+        "Mock test started, but Attempt ID was not returned."
+      );
     }
 
-    try {
-      setStarting(true);
-      setStartError("");
+    // Preserve existing state and history functionality
+    setStartedAttempt(data);
+    fetchHistory();
 
-      const response = await mockService.startTest(versionId);
-      const data = getData(response);
-
-      if (!data.id) {
-        throw new Error("Attempt ID was not returned by the server.");
+    // Open the separate IELTS Exam Page
+    navigate(
+      `/student/mock-test/attempt/${encodeURIComponent(attemptId)}`,
+      {
+        replace: true,
+        state: {
+          testId: testDetails.id,
+          testTitle: getTestTitle(testDetails),
+          versionId,
+        },
       }
+    );
+  } catch (err) {
+    setStartError(
+      err.message || "Unable to start mock test."
+    );
+  } finally {
+    setStarting(false);
+  }
+};
 
-      setStartedAttempt(data);
-
-      // Refresh history after creating an attempt
-      fetchHistory();
-    } catch (err) {
-      setStartError(err.message || "Unable to start mock test.");
-    } finally {
-      setStarting(false);
-    }
-  };
 
   const closeTestModal = () => {
     if (starting) return;
